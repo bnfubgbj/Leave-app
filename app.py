@@ -9,7 +9,17 @@ st.set_page_config(page_title="ระบบใบลา", page_icon="🌿", layo
 
 LEAVES_FILE = "leaves.json"
 EMPLOYEES_FILE = "employees.json"
-ADMIN_PASSWORD = "admin1234"
+CONFIG_FILE = "config.json"
+
+def load_config():
+    if os.path.exists(CONFIG_FILE):
+        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {"admin_password": "admin1234"}
+
+def save_config(data):
+    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
 
 def load_leaves():
     if os.path.exists(LEAVES_FILE):
@@ -38,13 +48,12 @@ def get_employee(emp_id):
     return None
 
 def get_used_days(emp_id, leave_type=None):
-    leaves = load_leaves()
-    result = [l for l in leaves if l["รหัส"] == emp_id and l["สถานะ"] == "อนุมัติแล้ว"]
+    result = [l for l in load_leaves() if l["รหัส"] == emp_id and l["สถานะ"] == "อนุมัติแล้ว"]
     if leave_type:
         result = [l for l in result if l["ประเภท"] == leave_type]
     return sum(l["จำนวนวัน"] for l in result)
 
-def export_summary_excel(employees, leaves):
+def export_summary_excel(employees):
     rows = []
     for e in employees:
         used_annual   = get_used_days(e["รหัส"], "ลาพักร้อน")
@@ -65,28 +74,21 @@ def export_summary_excel(employees, leaves):
             "ลาป่วยที่ใช้": used_sick,
             "ลาป่วยคงเหลือ": int(e["ลาป่วย"]) - used_sick,
         })
-
-    df_summary = pd.DataFrame(rows)
-
-    # สรุปรวม
+    df = pd.DataFrame(rows)
     df_total = pd.DataFrame([{
-        "รหัส": "",
-        "ชื่อ-นามสกุล": f"รวมทั้งหมด {len(employees)} คน",
-        "ตำแหน่ง": "",
-        "แผนก": "",
-        "สิทธิ์ลาพักร้อน": df_summary["สิทธิ์ลาพักร้อน"].sum(),
-        "ลาพักร้อนที่ใช้": df_summary["ลาพักร้อนที่ใช้"].sum(),
-        "ลาพักร้อนคงเหลือ": df_summary["ลาพักร้อนคงเหลือ"].sum(),
-        "สิทธิ์ลากิจ": df_summary["สิทธิ์ลากิจ"].sum(),
-        "ลากิจที่ใช้": df_summary["ลากิจที่ใช้"].sum(),
-        "ลากิจคงเหลือ": df_summary["ลากิจคงเหลือ"].sum(),
-        "สิทธิ์ลาป่วย": df_summary["สิทธิ์ลาป่วย"].sum(),
-        "ลาป่วยที่ใช้": df_summary["ลาป่วยที่ใช้"].sum(),
-        "ลาป่วยคงเหลือ": df_summary["ลาป่วยคงเหลือ"].sum(),
+        "รหัส": "", "ชื่อ-นามสกุล": f"รวมทั้งหมด {len(employees)} คน",
+        "ตำแหน่ง": "", "แผนก": "",
+        "สิทธิ์ลาพักร้อน": df["สิทธิ์ลาพักร้อน"].sum(),
+        "ลาพักร้อนที่ใช้": df["ลาพักร้อนที่ใช้"].sum(),
+        "ลาพักร้อนคงเหลือ": df["ลาพักร้อนคงเหลือ"].sum(),
+        "สิทธิ์ลากิจ": df["สิทธิ์ลากิจ"].sum(),
+        "ลากิจที่ใช้": df["ลากิจที่ใช้"].sum(),
+        "ลากิจคงเหลือ": df["ลากิจคงเหลือ"].sum(),
+        "สิทธิ์ลาป่วย": df["สิทธิ์ลาป่วย"].sum(),
+        "ลาป่วยที่ใช้": df["ลาป่วยที่ใช้"].sum(),
+        "ลาป่วยคงเหลือ": df["ลาป่วยคงเหลือ"].sum(),
     }])
-
-    df_final = pd.concat([df_summary, df_total], ignore_index=True)
-
+    df_final = pd.concat([df, df_total], ignore_index=True)
     output = BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
         df_final.to_excel(writer, index=False, sheet_name="สรุปการลา")
@@ -207,7 +209,8 @@ elif menu == "👥 จัดการพนักงาน (Admin)":
         with st.form("admin_login"):
             password = st.text_input("รหัสผ่าน", type="password")
             if st.form_submit_button("เข้าสู่ระบบ"):
-                if password == ADMIN_PASSWORD:
+                config = load_config()
+                if password == config["admin_password"]:
                     st.session_state.admin_logged_in = True
                     st.rerun()
                 else:
@@ -221,23 +224,20 @@ elif menu == "👥 จัดการพนักงาน (Admin)":
             st.rerun()
 
     employees = load_employees()
-    leaves = load_leaves()
 
-    # รายชื่อพนักงาน
     if employees:
         st.subheader("รายชื่อพนักงานในระบบ")
         st.dataframe(pd.DataFrame(employees), use_container_width=True)
     else:
         st.info("ยังไม่มีพนักงานในระบบ")
 
-    # ปุ่มสรุป Excel
+    # สรุป Excel
     if employees:
         st.divider()
         st.subheader("📊 สรุปการลา")
-        excel_data = export_summary_excel(employees, leaves)
         st.download_button(
             label="📥 ดาวน์โหลดสรุปการลา (.xlsx)",
-            data=excel_data,
+            data=export_summary_excel(employees),
             file_name=f"สรุปการลา_{date.today()}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
@@ -250,7 +250,7 @@ elif menu == "👥 จัดการพนักงาน (Admin)":
         col1, col2 = st.columns(2)
         with col1:
             emp_id   = st.text_input("รหัสพนักงาน เช่น 001")
-            fullname = st.text_input("ชื่อ-นามสกุล เช่น นายไก่ ขันแต่เช้า")
+            fullname = st.text_input("ชื่อ-นามสกุล")
             dept     = st.text_input("แผนก")
         with col2:
             position   = st.text_input("ตำแหน่ง")
@@ -284,10 +284,9 @@ elif menu == "👥 จัดการพนักงาน (Admin)":
         st.divider()
         st.subheader("✏️ แก้ไขข้อมูลพนักงาน")
         emp_list = [f"{e['รหัส']} — {e['ชื่อ']}" for e in employees]
-        selected_edit = st.selectbox("เลือกพนักงานที่ต้องการแก้ไข", emp_list, key="edit_select")
+        selected_edit = st.selectbox("เลือกพนักงาน", emp_list, key="edit_select")
         edit_id = selected_edit.split(" — ")[0]
         edit_emp = get_employee(edit_id)
-
         if edit_emp:
             with st.form("edit_employee"):
                 col1, col2 = st.columns(2)
@@ -296,21 +295,20 @@ elif menu == "👥 จัดการพนักงาน (Admin)":
                     new_dept     = st.text_input("แผนก", value=edit_emp["แผนก"])
                 with col2:
                     new_position = st.text_input("ตำแหน่ง", value=edit_emp["ตำแหน่ง"])
-                    new_annual   = st.number_input("สิทธิ์ลาพักร้อน (วัน)", min_value=0, value=int(edit_emp["ลาพักร้อน"]))
-                    new_personal = st.number_input("สิทธิ์ลากิจ (วัน)", min_value=0, value=int(edit_emp["ลากิจ"]))
-                    new_sick     = st.number_input("สิทธิ์ลาป่วย (วัน)", min_value=0, value=int(edit_emp["ลาป่วย"]))
-
-                if st.form_submit_button("💾 บันทึกการแก้ไข"):
+                    new_annual   = st.number_input("สิทธิ์ลาพักร้อน", min_value=0, value=int(edit_emp["ลาพักร้อน"]))
+                    new_personal = st.number_input("สิทธิ์ลากิจ", min_value=0, value=int(edit_emp["ลากิจ"]))
+                    new_sick     = st.number_input("สิทธิ์ลาป่วย", min_value=0, value=int(edit_emp["ลาป่วย"]))
+                if st.form_submit_button("💾 บันทึก"):
                     for e in employees:
                         if e["รหัส"] == edit_id:
-                            e["ชื่อ"]      = new_name
-                            e["แผนก"]      = new_dept
-                            e["ตำแหน่ง"]   = new_position
+                            e["ชื่อ"] = new_name
+                            e["แผนก"] = new_dept
+                            e["ตำแหน่ง"] = new_position
                             e["ลาพักร้อน"] = new_annual
-                            e["ลากิจ"]     = new_personal
-                            e["ลาป่วย"]    = new_sick
+                            e["ลากิจ"] = new_personal
+                            e["ลาป่วย"] = new_sick
                     save_employees(employees)
-                    st.success("✅ บันทึกเรียบร้อยแล้ว!")
+                    st.success("✅ บันทึกเรียบร้อย!")
                     st.rerun()
 
     # ลบพนักงาน
@@ -318,10 +316,30 @@ elif menu == "👥 จัดการพนักงาน (Admin)":
         st.divider()
         st.subheader("🗑 ลบพนักงาน")
         emp_list2 = [f"{e['รหัส']} — {e['ชื่อ']}" for e in employees]
-        selected_del = st.selectbox("เลือกพนักงานที่ต้องการลบ", emp_list2, key="del_select")
+        selected_del = st.selectbox("เลือกพนักงาน", emp_list2, key="del_select")
         if st.button("🗑 ลบ"):
             del_id = selected_del.split(" — ")[0]
             employees = [e for e in employees if e["รหัส"] != del_id]
             save_employees(employees)
-            st.success("ลบเรียบร้อยแล้ว!")
+            st.success("ลบเรียบร้อย!")
             st.rerun()
+
+    # เปลี่ยนรหัสผ่าน
+    st.divider()
+    st.subheader("🔑 เปลี่ยนรหัสผ่าน Admin")
+    with st.form("change_password"):
+        old_pw  = st.text_input("รหัสผ่านเดิม", type="password")
+        new_pw  = st.text_input("รหัสผ่านใหม่", type="password")
+        new_pw2 = st.text_input("ยืนยันรหัสผ่านใหม่", type="password")
+        if st.form_submit_button("🔑 เปลี่ยนรหัสผ่าน"):
+            config = load_config()
+            if old_pw != config["admin_password"]:
+                st.error("❌ รหัสผ่านเดิมไม่ถูกต้อง")
+            elif new_pw != new_pw2:
+                st.error("❌ รหัสผ่านใหม่ไม่ตรงกัน")
+            elif len(new_pw) < 6:
+                st.error("❌ รหัสผ่านต้องมีอย่างน้อย 6 ตัว")
+            else:
+                config["admin_password"] = new_pw
+                save_config(config)
+                st.success("✅ เปลี่ยนรหัสผ่านเรียบร้อยแล้ว!")
