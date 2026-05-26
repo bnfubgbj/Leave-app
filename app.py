@@ -274,7 +274,7 @@ elif menu == "📋 ประวัติการลา":
         status_filter = st.selectbox("กรองตามสถานะ", ["ทั้งหมด","รออนุมัติ","อนุมัติแล้ว","ถูกปฏิเสธ"])
         if status_filter != "ทั้งหมด":
             df = df[df["สถานะ"] == status_filter]
-        st.dataframe(df, use_container_width=True)
+        st.dataframe(df, use_container_width=True, hide_index=True)
 
 # ===============================
 elif menu == "👥 จัดการพนักงาน (Admin)":
@@ -324,7 +324,7 @@ elif menu == "👥 จัดการพนักงาน (Admin)":
 
     if employees:
         st.subheader("รายชื่อพนักงานในระบบ")
-        st.dataframe(pd.DataFrame(employees), use_container_width=True)
+        st.dataframe(pd.DataFrame(employees), use_container_width=True, hide_index=True)
     else:
         st.info("ยังไม่มีพนักงานในระบบ")
 
