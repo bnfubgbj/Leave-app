@@ -17,12 +17,13 @@ SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 # ===============================
 # Email Notification
 # ===============================
-def send_email_notification(leave):
+def send_email_notification(leave, receiver=None):
     try:
         cfg = st.secrets["email"]
         sender   = cfg["sender"]
         password = cfg["password"].replace(" ", "")
-        receiver = cfg["receiver"]
+        if not receiver:
+            receiver = cfg["receiver"]
 
         type_map = {"ลาพักร้อน":"ลาพักร้อน","ลาป่วย":"ลาป่วย","ลากิจ":"ลากิจ","อื่นๆ":"อื่นๆ"}
         subject = f"[ระบบใบลา] {leave['ชื่อ']} ขอ{leave['ประเภท']} {leave['จำนวนวัน']} วัน รอการอนุมัติ"
@@ -92,7 +93,8 @@ def save_employee(emp):
         ws.append_row(["รหัส","ชื่อ","ตำแหน่ง","แผนก","วันเริ่มงาน","ลาพักร้อน","ลากิจ","ลาป่วย"])
     ws.append_row([
         emp["รหัส"], emp["ชื่อ"], emp["ตำแหน่ง"], emp["แผนก"],
-        emp["วันเริ่มงาน"], emp["ลาพักร้อน"], emp["ลากิจ"], emp["ลาป่วย"]
+        emp["วันเริ่มงาน"], emp["ลาพักร้อน"], emp["ลากิจ"], emp["ลาป่วย"],
+        emp.get("รหัสหัวหน้า",""), emp.get("อีเมลหัวหน้า","")
     ])
 
 def update_employee(emp_id, updated):
@@ -281,7 +283,8 @@ if menu == "📝 ยื่นคำขอลา":
                         "สถานะ": "รออนุมัติ", "หมายเหตุ": ""
                     }
                     save_leave(new_leave)
-                    send_email_notification(new_leave)
+                    boss_email = emp.get("อีเมลหัวหน้า", "")
+                    send_email_notification(new_leave, receiver=boss_email if boss_email else None)
                     st.success("✅ ยื่นคำขอลาเรียบร้อยแล้ว! แจ้งเตือนผู้บังคับบัญชาแล้ว 📧")
 
 # ===============================
@@ -399,6 +402,8 @@ elif menu == "👥 จัดการพนักงาน (Admin)":
             annual     = st.number_input("สิทธิ์ลาพักร้อน (วัน)", min_value=0, value=6)
             personal   = st.number_input("สิทธิ์ลากิจ (วัน)", min_value=0, value=3)
             sick       = st.number_input("สิทธิ์ลาป่วย (วัน)", min_value=0, value=30)
+        boss_id          = st.text_input("รหัสหัวหน้า (ถ้ามี)")
+        boss_email_input = st.text_input("อีเมลหัวหน้า (สำหรับแจ้งเตือน)")
         if st.form_submit_button("➕ เพิ่มพนักงาน"):
             if not emp_id or not fullname:
                 st.error("กรุณากรอกรหัสและชื่อ-นามสกุล")
@@ -410,6 +415,8 @@ elif menu == "👥 จัดการพนักงาน (Admin)":
                     "ตำแหน่ง": position, "แผนก": dept,
                     "วันเริ่มงาน": str(start_date),
                     "ลาพักร้อน": annual, "ลากิจ": personal, "ลาป่วย": sick,
+                    "รหัสหัวหน้า": boss_id.strip().zfill(4) if boss_id.strip() else "",
+                    "อีเมลหัวหน้า": boss_email_input.strip(),
                 })
                 st.success(f"✅ เพิ่ม {fullname} เรียบร้อยแล้ว!")
                 st.rerun()
