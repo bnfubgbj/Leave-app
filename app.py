@@ -132,7 +132,8 @@ def get_employee(emp_id):
 def load_leaves():
     try:
         ws = get_sheet("leaves")
-        return ws.get_all_records()
+        data = ws.get_all_records(numericise_ignore=["all"])
+        return data
     except:
         return []
 
@@ -151,7 +152,9 @@ def update_leave_status(leave_id, status, note):
     ws = get_sheet("leaves")
     records = ws.get_all_values()
     for i, row in enumerate(records):
-        if str(row[0]) == str(leave_id):
+        if i == 0:
+            continue  # skip header
+        if str(row[0]).strip() == str(leave_id).strip():
             ws.update_cell(i + 1, 12, status)
             ws.update_cell(i + 1, 13, note)
             break
@@ -303,12 +306,12 @@ elif menu == "✅ อนุมัติใบลา":
             col1, col2 = st.columns(2)
             with col1:
                 if st.button("✅ อนุมัติ", key=f"approve_{i}"):
-                    update_leave_status(l["id"], "อนุมัติแล้ว", note)
+                    update_leave_status(l.get("id", l.get("ID", l.get("Id",""))), "อนุมัติแล้ว", note)
                     st.success("อนุมัติเรียบร้อย!")
                     st.rerun()
             with col2:
                 if st.button("❌ ปฏิเสธ", key=f"reject_{i}"):
-                    update_leave_status(l["id"], "ถูกปฏิเสธ", note)
+                    update_leave_status(l.get("id", l.get("ID", l.get("Id",""))), "ถูกปฏิเสธ", note)
                     st.error("ปฏิเสธแล้ว")
                     st.rerun()
 
