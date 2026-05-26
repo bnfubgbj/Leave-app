@@ -15,7 +15,11 @@ def load_config():
     if os.path.exists(CONFIG_FILE):
         with open(CONFIG_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
-    return {"admin_password": "admin1234"}
+    return {
+        "admin_password": "admin1234",
+        "secret_question": "ชื่อบริษัทของคุณคืออะไร?",
+        "secret_answer": "abc"
+    }
 
 def save_config(data):
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
@@ -205,18 +209,39 @@ elif menu == "👥 จัดการพนักงาน (Admin)":
         st.session_state.admin_logged_in = False
 
     if not st.session_state.admin_logged_in:
-        st.subheader("🔒 กรุณาใส่รหัสผ่าน Admin")
-        with st.form("admin_login"):
-            password = st.text_input("รหัสผ่าน", type="password")
-            if st.form_submit_button("เข้าสู่ระบบ"):
-                config = load_config()
-                if password == config["admin_password"]:
-                    st.session_state.admin_logged_in = True
-                    st.rerun()
-                else:
-                    st.error("❌ รหัสผ่านไม่ถูกต้อง")
+        config = load_config()
+        tab1, tab2 = st.tabs(["🔒 เข้าสู่ระบบ", "🔑 ลืมรหัสผ่าน"])
+
+        with tab1:
+            with st.form("admin_login"):
+                password = st.text_input("รหัสผ่าน", type="password")
+                if st.form_submit_button("เข้าสู่ระบบ"):
+                    if password == config["admin_password"]:
+                        st.session_state.admin_logged_in = True
+                        st.rerun()
+                    else:
+                        st.error("❌ รหัสผ่านไม่ถูกต้อง")
+
+        with tab2:
+            st.info(f"❓ {config['secret_question']}")
+            with st.form("forgot_password"):
+                answer  = st.text_input("คำตอบ")
+                new_pw  = st.text_input("รหัสผ่านใหม่", type="password")
+                new_pw2 = st.text_input("ยืนยันรหัสผ่านใหม่", type="password")
+                if st.form_submit_button("รีเซ็ตรหัสผ่าน"):
+                    if answer.strip().lower() != config["secret_answer"].strip().lower():
+                        st.error("❌ คำตอบไม่ถูกต้อง")
+                    elif new_pw != new_pw2:
+                        st.error("❌ รหัสผ่านใหม่ไม่ตรงกัน")
+                    elif len(new_pw) < 6:
+                        st.error("❌ รหัสผ่านต้องมีอย่างน้อย 6 ตัว")
+                    else:
+                        config["admin_password"] = new_pw
+                        save_config(config)
+                        st.success("✅ รีเซ็ตรหัสผ่านเรียบร้อย! กลับไปเข้าสู่ระบบได้เลย")
         st.stop()
 
+    # Admin Panel
     col_title, col_logout = st.columns([4, 1])
     with col_logout:
         if st.button("🚪 ออกจากระบบ"):
@@ -231,7 +256,6 @@ elif menu == "👥 จัดการพนักงาน (Admin)":
     else:
         st.info("ยังไม่มีพนักงานในระบบ")
 
-    # สรุป Excel
     if employees:
         st.divider()
         st.subheader("📊 สรุปการลา")
@@ -243,8 +267,6 @@ elif menu == "👥 จัดการพนักงาน (Admin)":
         )
 
     st.divider()
-
-    # เพิ่มพนักงาน
     st.subheader("➕ เพิ่มพนักงานใหม่")
     with st.form("add_employee"):
         col1, col2 = st.columns(2)
@@ -258,7 +280,6 @@ elif menu == "👥 จัดการพนักงาน (Admin)":
             annual     = st.number_input("สิทธิ์ลาพักร้อน (วัน)", min_value=0, value=6)
             personal   = st.number_input("สิทธิ์ลากิจ (วัน)", min_value=0, value=3)
             sick       = st.number_input("สิทธิ์ลาป่วย (วัน)", min_value=0, value=30)
-
         if st.form_submit_button("➕ เพิ่มพนักงาน"):
             if not emp_id or not fullname:
                 st.error("กรุณากรอกรหัสและชื่อ-นามสกุล")
@@ -279,7 +300,6 @@ elif menu == "👥 จัดการพนักงาน (Admin)":
                 st.success(f"✅ เพิ่ม {fullname} เรียบร้อยแล้ว!")
                 st.rerun()
 
-    # แก้ไขพนักงาน
     if employees:
         st.divider()
         st.subheader("✏️ แก้ไขข้อมูลพนักงาน")
@@ -311,7 +331,6 @@ elif menu == "👥 จัดการพนักงาน (Admin)":
                     st.success("✅ บันทึกเรียบร้อย!")
                     st.rerun()
 
-    # ลบพนักงาน
     if employees:
         st.divider()
         st.subheader("🗑 ลบพนักงาน")
@@ -324,9 +343,8 @@ elif menu == "👥 จัดการพนักงาน (Admin)":
             st.success("ลบเรียบร้อย!")
             st.rerun()
 
-    # เปลี่ยนรหัสผ่าน
     st.divider()
-    st.subheader("🔑 เปลี่ยนรหัสผ่าน Admin")
+    st.subheader("🔑 เปลี่ยนรหัสผ่าน")
     with st.form("change_password"):
         old_pw  = st.text_input("รหัสผ่านเดิม", type="password")
         new_pw  = st.text_input("รหัสผ่านใหม่", type="password")
@@ -342,4 +360,19 @@ elif menu == "👥 จัดการพนักงาน (Admin)":
             else:
                 config["admin_password"] = new_pw
                 save_config(config)
-                st.success("✅ เปลี่ยนรหัสผ่านเรียบร้อยแล้ว!")
+                st.success("✅ เปลี่ยนรหัสผ่านเรียบร้อย!")
+
+    st.divider()
+    st.subheader("❓ ตั้งคำถามลับ")
+    config = load_config()
+    with st.form("change_secret"):
+        new_question = st.text_input("คำถามลับ", value=config["secret_question"])
+        new_answer   = st.text_input("คำตอบ", value=config["secret_answer"])
+        if st.form_submit_button("💾 บันทึกคำถามลับ"):
+            if not new_question or not new_answer:
+                st.error("กรุณากรอกให้ครบ")
+            else:
+                config["secret_question"] = new_question
+                config["secret_answer"]   = new_answer
+                save_config(config)
+                st.success("✅ บันทึกคำถามลับเรียบร้อย!")
