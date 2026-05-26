@@ -140,7 +140,7 @@ def save_config(config):
 def export_summary_excel(employees):
     rows = []
     for e in employees:
-        used_annual   = get_used_days(e["รหัส"], "ลาพักร้อน")
+        used_annual   = get_used_days(str(e.get("รหัส","")), "ลาพักร้อน")
         used_personal = get_used_days(e["รหัส"], "ลากิจ")
         used_sick     = get_used_days(e["รหัส"], "ลาป่วย")
         rows.append({
