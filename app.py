@@ -258,10 +258,31 @@ if menu == "📝 ยื่นคำขอลา":
     if emp_id:
         emp = get_employee(emp_id.strip())
         if emp:
-            carry = int(emp.get("วันสะสม", 0) or 0)
+            carry        = int(emp.get("วันสะสม", 0) or 0)
             total_annual = int(emp.get("ลาพักร้อน", 0)) + carry
+            used_annual  = get_used_days(emp["รหัส"], "ลาพักร้อน")
+            used_personal= get_used_days(emp["รหัส"], "ลากิจ")
+            used_sick    = get_used_days(emp["รหัส"], "ลาป่วย")
+            left_annual  = total_annual - used_annual
+            left_personal= int(emp.get("ลากิจ", 0)) - used_personal
+            left_sick    = int(emp.get("ลาป่วย", 0)) - used_sick
             st.success(f"👤 {emp['ชื่อ']} — {emp['ตำแหน่ง']} ({emp['แผนก']})")
-            st.info(f"สิทธิ์ลาพักร้อน: {emp['ลาพักร้อน']} วัน + สะสม {carry} วัน = **{total_annual} วัน** | ลากิจ {emp['ลากิจ']} วัน | ลาป่วย {emp['ลาป่วย']} วัน")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                if left_annual <= 0:
+                    st.error(f"🏖 ลาพักร้อน: เหลือ **{left_annual} วัน**")
+                else:
+                    st.info(f"🏖 ลาพักร้อน: เหลือ **{left_annual} วัน**")
+            with col2:
+                if left_personal <= 0:
+                    st.error(f"📋 ลากิจ: เหลือ **{left_personal} วัน**")
+                else:
+                    st.info(f"📋 ลากิจ: เหลือ **{left_personal} วัน**")
+            with col3:
+                if left_sick <= 0:
+                    st.error(f"🏥 ลาป่วย: เหลือ **{left_sick} วัน**")
+                else:
+                    st.info(f"🏥 ลาป่วย: เหลือ **{left_sick} วัน**")
         else:
             st.error("ไม่พบรหัสพนักงานนี้ในระบบ")
 
@@ -283,6 +304,12 @@ if menu == "📝 ยื่นคำขอลา":
                     st.error("กรุณาระบุเหตุผล")
                 elif days <= 0:
                     st.error("วันที่ไม่ถูกต้อง")
+                elif leave_type == "ลาพักร้อน" and days > left_annual:
+                    st.error(f"❌ วันลาพักร้อนไม่เพียงพอ! เหลือ {left_annual} วัน แต่ขอลา {days} วัน")
+                elif leave_type == "ลากิจ" and days > left_personal:
+                    st.error(f"❌ วันลากิจไม่เพียงพอ! เหลือ {left_personal} วัน แต่ขอลา {days} วัน")
+                elif leave_type == "ลาป่วย" and days > left_sick:
+                    st.error(f"❌ วันลาป่วยไม่เพียงพอ! เหลือ {left_sick} วัน แต่ขอลา {days} วัน")
                 else:
                     leaves = load_leaves()
                     new_leave = {
