@@ -297,8 +297,29 @@ if menu == "📝 ยื่นคำขอลา":
 # ===============================
 elif menu == "✅ อนุมัติใบลา":
     st.header("อนุมัติใบลา")
+
+    # ให้ผู้อนุมัติกรอกรหัสพนักงานก่อน
+    approver_id = st.text_input("กรอกรหัสพนักงานของคุณ เช่น 0001")
+    approver_emp = None
+    if approver_id:
+        approver_emp = get_employee(approver_id.strip())
+        if approver_emp:
+            st.success(f"👤 {approver_emp['ชื่อ']} — {approver_emp['ตำแหน่ง']} ({approver_emp['แผนก']})")
+        else:
+            st.error("ไม่พบรหัสพนักงานนี้ในระบบ")
+
+    if not approver_emp:
+        st.stop()
+
     leaves = load_leaves()
-    pending = [l for l in leaves if l["สถานะ"] == "รออนุมัติ"]
+    # แสดงเฉพาะรายการที่ส่งให้ผู้อนุมัตินี้
+    pending = [l for l in leaves if l.get("สถานะ","") == "รออนุมัติ" and 
+               (l.get("ผู้อนุมัติ","") == approver_emp.get("ตำแหน่ง","") or 
+                l.get("รหัส","") != approver_id.strip())]
+    
+    # กรองไม่ให้เห็นใบลาของตัวเอง
+    pending = [l for l in pending if normalize_id(str(l.get("รหัส",""))) != normalize_id(approver_id)]
+
     if not pending:
         st.info("ไม่มีรายการรออนุมัติ")
     for i, l in enumerate(pending):
