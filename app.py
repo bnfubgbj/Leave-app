@@ -30,7 +30,10 @@ def get_sheet(name):
 def load_employees():
     try:
         ws = get_sheet("employees")
-        data = ws.get_all_records()
+        data = ws.get_all_records(numericise_ignore=["all"])
+        for e in data:
+            if "รหัส" in e:
+                e["รหัส"] = str(e["รหัส"]).strip().zfill(4)
         return data
     except:
         return []
