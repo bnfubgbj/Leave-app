@@ -5,11 +5,56 @@ from google.oauth2.service_account import Credentials
 from datetime import date
 from io import BytesIO
 import json
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 st.set_page_config(page_title="ระบบใบลา", page_icon="🌿", layout="centered")
 
 SHEET_ID = "1KR8adBRkkrEhjgY1lf4eTQ3rovLmcLYJdNCSFN827no"
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+
+# ===============================
+# Email Notification
+# ===============================
+def send_email_notification(leave):
+    try:
+        cfg = st.secrets["email"]
+        sender   = cfg["sender"]
+        password = cfg["password"].replace(" ", "")
+        receiver = cfg["receiver"]
+
+        type_map = {"ลาพักร้อน":"ลาพักร้อน","ลาป่วย":"ลาป่วย","ลากิจ":"ลากิจ","อื่นๆ":"อื่นๆ"}
+        subject = f"[ระบบใบลา] {leave['ชื่อ']} ขอ{leave['ประเภท']} {leave['จำนวนวัน']} วัน รอการอนุมัติ"
+
+        body = f"""
+        <h2>📋 มีคำขอลาใหม่รอการอนุมัติ</h2>
+        <table border="1" cellpadding="8" style="border-collapse:collapse;">
+            <tr><td><b>พนักงาน</b></td><td>{leave['ชื่อ']}</td></tr>
+            <tr><td><b>แผนก</b></td><td>{leave['แผนก']}</td></tr>
+            <tr><td><b>ตำแหน่ง</b></td><td>{leave['ตำแหน่ง']}</td></tr>
+            <tr><td><b>ประเภทการลา</b></td><td>{leave['ประเภท']}</td></tr>
+            <tr><td><b>วันที่</b></td><td>{leave['วันเริ่ม']} ถึง {leave['วันสิ้นสุด']}</td></tr>
+            <tr><td><b>จำนวนวัน</b></td><td>{leave['จำนวนวัน']} วัน</td></tr>
+            <tr><td><b>เหตุผล</b></td><td>{leave['เหตุผล']}</td></tr>
+        </table>
+        <br>
+        <p>กรุณาเข้าระบบเพื่ออนุมัติหรือปฏิเสธคำขอ</p>
+        """
+
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"]    = sender
+        msg["To"]      = receiver
+        msg.attach(MIMEText(body, "html", "utf-8"))
+
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(sender, password)
+            server.sendmail(sender, receiver, msg.as_string())
+        return True
+    except Exception as e:
+        st.warning(f"ส่ง Email ไม่สำเร็จ: {e}")
+        return False
 
 # ===============================
 # Google Sheets Connection
@@ -226,7 +271,7 @@ if menu == "📝 ยื่นคำขอลา":
                     st.error("วันที่ไม่ถูกต้อง")
                 else:
                     leaves = load_leaves()
-                    save_leave({
+                    new_leave = {
                         "id": len(leaves) + 1,
                         "รหัส": emp["รหัส"], "ชื่อ": emp["ชื่อ"],
                         "แผนก": emp["แผนก"], "ตำแหน่ง": emp["ตำแหน่ง"],
@@ -234,8 +279,10 @@ if menu == "📝 ยื่นคำขอลา":
                         "วันสิ้นสุด": str(end), "จำนวนวัน": days,
                         "เหตุผล": reason, "ผู้อนุมัติ": approver,
                         "สถานะ": "รออนุมัติ", "หมายเหตุ": ""
-                    })
-                    st.success("✅ ยื่นคำขอลาเรียบร้อยแล้ว!")
+                    }
+                    save_leave(new_leave)
+                    send_email_notification(new_leave)
+                    st.success("✅ ยื่นคำขอลาเรียบร้อยแล้ว! แจ้งเตือนผู้บังคับบัญชาแล้ว 📧")
 
 # ===============================
 elif menu == "✅ อนุมัติใบลา":
