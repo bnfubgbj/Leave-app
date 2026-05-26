@@ -24,6 +24,10 @@ def send_email_notification(leave, receiver=None):
         password = cfg["password"].replace(" ", "")
         if not receiver:
             receiver = cfg["receiver"]
+        # รองรับหลาย email คั่นด้วย comma
+        receivers = [r.strip() for r in str(receiver).split(",") if r.strip()]
+        if not receivers:
+            receivers = [cfg["receiver"]]
 
         type_map = {"ลาพักร้อน":"ลาพักร้อน","ลาป่วย":"ลาป่วย","ลากิจ":"ลากิจ","อื่นๆ":"อื่นๆ"}
         subject = f"[ระบบใบลา] {leave['ชื่อ']} ขอ{leave['ประเภท']} {leave['จำนวนวัน']} วัน รอการอนุมัติ"
@@ -46,12 +50,13 @@ def send_email_notification(leave, receiver=None):
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
         msg["From"]    = sender
-        msg["To"]      = receiver
+        # To header will be set after receivers list is built
         msg.attach(MIMEText(body, "html", "utf-8"))
 
+        msg["To"] = ", ".join(receivers)
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
             server.login(sender, password)
-            server.sendmail(sender, receiver, msg.as_string())
+            server.sendmail(sender, receivers, msg.as_string())
         return True
     except Exception as e:
         st.warning(f"ส่ง Email ไม่สำเร็จ: {e}")
