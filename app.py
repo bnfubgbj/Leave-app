@@ -66,9 +66,13 @@ def delete_employee(emp_id):
             ws.delete_rows(i + 1)
             break
 
+def normalize_id(emp_id):
+    return str(emp_id).strip().zfill(4)
+
 def get_employee(emp_id):
+    nid = normalize_id(emp_id)
     for e in load_employees():
-        if str(e["รหัส"]) == str(emp_id):
+        if normalize_id(str(e.get("รหัส",""))) == nid:
             return e
     return None
 
@@ -189,7 +193,7 @@ menu = st.sidebar.radio("เมนู", [
 # ===============================
 if menu == "📝 ยื่นคำขอลา":
     st.header("ยื่นคำขอลา")
-    emp_id = st.text_input("กรอกรหัสพนักงาน")
+    emp_id = st.text_input("กรอกรหัสพนักงาน เช่น 0001")
     emp = None
     if emp_id:
         emp = get_employee(emp_id.strip())
@@ -336,7 +340,7 @@ elif menu == "👥 จัดการพนักงาน (Admin)":
     with st.form("add_employee"):
         col1, col2 = st.columns(2)
         with col1:
-            emp_id   = st.text_input("รหัสพนักงาน เช่น 001")
+            emp_id   = st.text_input("รหัสพนักงาน เช่น 0001")
             fullname = st.text_input("ชื่อ-นามสกุล")
             dept     = st.text_input("แผนก")
         with col2:
@@ -352,7 +356,7 @@ elif menu == "👥 จัดการพนักงาน (Admin)":
                 st.error("❌ รหัสพนักงานนี้มีอยู่แล้ว")
             else:
                 save_employee({
-                    "รหัส": emp_id.strip(), "ชื่อ": fullname.strip(),
+                    "รหัส": emp_id.strip().zfill(4), "ชื่อ": fullname.strip(),
                     "ตำแหน่ง": position, "แผนก": dept,
                     "วันเริ่มงาน": str(start_date),
                     "ลาพักร้อน": annual, "ลากิจ": personal, "ลาป่วย": sick,
