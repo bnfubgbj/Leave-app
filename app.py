@@ -8,6 +8,7 @@ st.set_page_config(page_title="ระบบใบลา", page_icon="🌿", layo
 
 LEAVES_FILE = "leaves.json"
 EMPLOYEES_FILE = "employees.json"
+ADMIN_PASSWORD = "admin1234"  # ← เปลี่ยนรหัสผ่านได้ตรงนี้
 
 def load_leaves():
     if os.path.exists(LEAVES_FILE):
@@ -140,9 +141,34 @@ elif menu == "📋 ประวัติการลา":
 
 # ===============================
 elif menu == "👥 จัดการพนักงาน (Admin)":
-    st.header("จัดการพนักงาน")
+    st.header("👥 จัดการพนักงาน")
+
+    # --- ระบบ Login Admin ---
+    if "admin_logged_in" not in st.session_state:
+        st.session_state.admin_logged_in = False
+
+    if not st.session_state.admin_logged_in:
+        st.subheader("🔒 กรุณาใส่รหัสผ่าน Admin")
+        with st.form("admin_login"):
+            password = st.text_input("รหัสผ่าน", type="password")
+            if st.form_submit_button("เข้าสู่ระบบ"):
+                if password == ADMIN_PASSWORD:
+                    st.session_state.admin_logged_in = True
+                    st.rerun()
+                else:
+                    st.error("❌ รหัสผ่านไม่ถูกต้อง")
+        st.stop()
+
+    # --- Admin Panel ---
+    col_title, col_logout = st.columns([4, 1])
+    with col_logout:
+        if st.button("🚪 ออกจากระบบ"):
+            st.session_state.admin_logged_in = False
+            st.rerun()
+
     employees = load_employees()
 
+    # แสดงรายชื่อพนักงาน
     if employees:
         st.subheader("รายชื่อพนักงานในระบบ")
         st.dataframe(pd.DataFrame(employees), use_container_width=True)
@@ -150,6 +176,8 @@ elif menu == "👥 จัดการพนักงาน (Admin)":
         st.info("ยังไม่มีพนักงานในระบบ")
 
     st.divider()
+
+    # เพิ่มพนักงาน
     st.subheader("➕ เพิ่มพนักงานใหม่")
     with st.form("add_employee"):
         col1, col2 = st.columns(2)
@@ -184,13 +212,48 @@ elif menu == "👥 จัดการพนักงาน (Admin)":
                 st.success(f"✅ เพิ่ม {fullname} เรียบร้อยแล้ว!")
                 st.rerun()
 
+    # แก้ไขพนักงาน
+    if employees:
+        st.divider()
+        st.subheader("✏️ แก้ไขข้อมูลพนักงาน")
+        emp_list = [f"{e['รหัส']} — {e['ชื่อ']}" for e in employees]
+        selected_edit = st.selectbox("เลือกพนักงานที่ต้องการแก้ไข", emp_list, key="edit_select")
+        edit_id = selected_edit.split(" — ")[0]
+        edit_emp = get_employee(edit_id)
+
+        if edit_emp:
+            with st.form("edit_employee"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    new_name     = st.text_input("ชื่อ-นามสกุล", value=edit_emp["ชื่อ"])
+                    new_dept     = st.text_input("แผนก", value=edit_emp["แผนก"])
+                with col2:
+                    new_position = st.text_input("ตำแหน่ง", value=edit_emp["ตำแหน่ง"])
+                    new_annual   = st.number_input("สิทธิ์ลาพักร้อน (วัน)", min_value=0, value=int(edit_emp["ลาพักร้อน"]))
+                    new_personal = st.number_input("สิทธิ์ลากิจ (วัน)", min_value=0, value=int(edit_emp["ลากิจ"]))
+                    new_sick     = st.number_input("สิทธิ์ลาป่วย (วัน)", min_value=0, value=int(edit_emp["ลาป่วย"]))
+
+                if st.form_submit_button("💾 บันทึกการแก้ไข"):
+                    for e in employees:
+                        if e["รหัส"] == edit_id:
+                            e["ชื่อ"]       = new_name
+                            e["แผนก"]       = new_dept
+                            e["ตำแหน่ง"]    = new_position
+                            e["ลาพักร้อน"]  = new_annual
+                            e["ลากิจ"]      = new_personal
+                            e["ลาป่วย"]     = new_sick
+                    save_employees(employees)
+                    st.success("✅ บันทึกเรียบร้อยแล้ว!")
+                    st.rerun()
+
+    # ลบพนักงาน
     if employees:
         st.divider()
         st.subheader("🗑 ลบพนักงาน")
-        emp_list = [f"{e['รหัส']} — {e['ชื่อ']}" for e in employees]
-        selected = st.selectbox("เลือกพนักงานที่ต้องการลบ", emp_list)
+        emp_list2 = [f"{e['รหัส']} — {e['ชื่อ']}" for e in employees]
+        selected_del = st.selectbox("เลือกพนักงานที่ต้องการลบ", emp_list2, key="del_select")
         if st.button("🗑 ลบ"):
-            del_id = selected.split(" — ")[0]
+            del_id = selected_del.split(" — ")[0]
             employees = [e for e in employees if e["รหัส"] != del_id]
             save_employees(employees)
             st.success("ลบเรียบร้อยแล้ว!")
