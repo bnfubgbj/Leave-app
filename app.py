@@ -340,7 +340,14 @@ if menu == "📝 ยื่นคำขอลา":
             days = (end - start).days + 1
             st.info(f"จำนวนวันลา: {days} วัน")
             reason = st.text_area("เหตุผล")
-            approver = st.selectbox("ผู้อนุมัติ", ["ผู้จัดการ", "HR"])
+            # ดึงชื่อหัวหน้าจากข้อมูลพนักงาน
+            boss_id_val = str(emp.get("รหัสหัวหน้า", "")).strip().zfill(4)
+            boss_emp = get_employee(boss_id_val) if boss_id_val and boss_id_val != "0000" else None
+            if boss_emp:
+                approver = f"{boss_id_val} - {boss_emp.get('ชื่อ','')} ({boss_emp.get('ตำแหน่ง','')})"
+                st.info(f"👤 ผู้อนุมัติ: **{approver}**")
+            else:
+                approver = st.selectbox("ผู้อนุมัติ", ["ผู้จัดการ", "HR"])
             submitted = st.form_submit_button("📤 ส่งคำขอลา")
             if submitted:
                 if not reason:
