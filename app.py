@@ -279,21 +279,78 @@ def export_summary_excel(employees):
 # ===============================
 # MENU
 # ===============================
-menu = st.sidebar.radio("เมนู", [
-    "📝 ยื่นคำขอลา",
-    "✅ อนุมัติใบลา",
-    "📋 ประวัติการลา",
-    "👥 จัดการพนักงาน (Admin)",
-])
+# ===============================
+# Login System
+# ===============================
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+    st.session_state.login_user = None
+    st.session_state.is_admin = False
+
+def do_logout():
+    st.session_state.logged_in = False
+    st.session_state.login_user = None
+    st.session_state.is_admin = False
+
+if not st.session_state.logged_in:
+    st.title("🌿 ระบบจัดการใบลา")
+    st.subheader("🔐 เข้าสู่ระบบ")
+    with st.form("login_form"):
+        login_id = st.text_input("รหัสพนักงาน เช่น 0001")
+        login_pw = st.text_input("รหัสผ่าน", type="password")
+        if st.form_submit_button("เข้าสู่ระบบ"):
+            config = load_config()
+            # เช็ค Admin
+            if login_id == "admin" and login_pw == config.get("admin_password", "admin1234"):
+                st.session_state.logged_in = True
+                st.session_state.login_user = None
+                st.session_state.is_admin = True
+                st.rerun()
+            else:
+                emp = get_employee(login_id.strip())
+                if emp and str(emp.get("รหัสผ่าน","")).strip() == str(login_pw).strip():
+                    st.session_state.logged_in = True
+                    st.session_state.login_user = emp
+                    st.session_state.is_admin = False
+                    st.rerun()
+                else:
+                    st.error("❌ รหัสพนักงานหรือรหัสผ่านไม่ถูกต้อง")
+    st.stop()
+
+# Show user info and logout
+current_user = st.session_state.login_user
+is_admin = st.session_state.is_admin
+
+with st.sidebar:
+    if is_admin:
+        st.success("👑 Admin")
+    else:
+        st.success(f"👤 {current_user.get('ชื่อ','')} ({current_user.get('รหัส','')})")
+    if st.button("🚪 ออกจากระบบ"):
+        do_logout()
+        st.rerun()
+
+# เมนูตาม role
+if is_admin:
+    menu = st.sidebar.radio("เมนู", [
+        "📋 ประวัติการลา",
+        "✅ อนุมัติใบลา",
+        "👥 จัดการพนักงาน (Admin)",
+    ])
+else:
+    menu = st.sidebar.radio("เมนู", [
+        "📝 ยื่นคำขอลา",
+        "✅ อนุมัติใบลา",
+        "📋 ประวัติการลา",
+    ])
 
 # ===============================
 if menu == "📝 ยื่นคำขอลา":
     st.header("ยื่นคำขอลา")
-    emp_id = st.text_input("กรอกรหัสพนักงาน เช่น 0001")
-    emp = None
-    if emp_id:
-        emp = get_employee(emp_id.strip())
-        if emp:
+    # ใช้ข้อมูลจาก login โดยตรง
+    emp = current_user
+    emp_id = emp.get("รหัส","") if emp else ""
+    if emp:
             carry         = int(emp.get("วันสะสม", 0) or 0)
             total_annual  = int(emp.get("ลาพักร้อน", 0)) + carry
             # แยก อนุมัติแล้ว vs รออนุมัติ
@@ -355,9 +412,6 @@ if menu == "📝 ยื่นคำขอลา":
                 st.warning("⏳ รายการที่รออนุมัติ")
                 for pl in pending_leaves:
                     st.info(f"📅 {pl.get('ประเภท','')} | {pl.get('วันเริ่ม','')} → {pl.get('วันสิ้นสุด','')} | {pl.get('จำนวนวัน','')} วัน | เหตุผล: {pl.get('เหตุผล','')}")
-        else:
-            st.error("ไม่พบรหัสพนักงานนี้ในระบบ")
-
     if emp:
         with st.form("leave_form"):
             leave_type = st.selectbox("ประเภทการลา", ["ลาพักร้อน", "ลาป่วย", "ลากิจ", "อื่นๆ"])
@@ -470,6 +524,14 @@ elif menu == "📋 ประวัติการลา":
     else:
         df = pd.DataFrame(leaves)
         df = df[["รหัส","ชื่อ","แผนก","ประเภท","วันเริ่ม","วันสิ้นสุด","จำนวนวัน","สถานะ","เหตุผล"]]
+        # Admin ดูได้ทุกคน พนักงานดูเฉพาะของตัวเอง
+        if not is_admin:
+            df = df[df["รหัส"] == current_user.get("รหัส","")]
+        else:
+            emp_filter = st.selectbox("กรองตามพนักงาน", ["ทั้งหมด"] + [f"{e['รหัส']} - {e['ชื่อ']}" for e in load_employees()])
+            if emp_filter != "ทั้งหมด":
+                filter_id = emp_filter.split(" - ")[0]
+                df = df[df["รหัส"] == filter_id]
         status_filter = st.selectbox("กรองตามสถานะ", ["ทั้งหมด","รออนุมัติ","อนุมัติแล้ว","ถูกปฏิเสธ"])
         if status_filter != "ทั้งหมด":
             df = df[df["สถานะ"] == status_filter]
