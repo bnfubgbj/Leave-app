@@ -290,16 +290,33 @@ if menu == "📝 ยื่นคำขอลา":
 
             st.success(f"👤 {emp['ชื่อ']} — {emp['ตำแหน่ง']} ({emp['แผนก']})")
 
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                color = "error" if left_annual <= 0 else "info"
-                getattr(st, color)(f"🏖 **ลาพักร้อน**\nสิทธิ์รวม: {total_annual} วัน\nอนุมัติแล้ว: {approved_annual} วัน\nรออนุมัติ: {pending_annual} วัน\n**คงเหลือ: {left_annual} วัน**")
-            with col2:
-                color = "error" if left_personal <= 0 else "info"
-                getattr(st, color)(f"📋 **ลากิจ**\nสิทธิ์รวม: {int(emp.get('ลากิจ',0))} วัน\nอนุมัติแล้ว: {approved_personal} วัน\nรออนุมัติ: {pending_personal} วัน\n**คงเหลือ: {left_personal} วัน**")
-            with col3:
-                color = "error" if left_sick <= 0 else "info"
-                getattr(st, color)(f"🏥 **ลาป่วย**\nสิทธิ์รวม: {int(emp.get('ลาป่วย',0))} วัน\nอนุมัติแล้ว: {approved_sick} วัน\nรออนุมัติ: {pending_sick} วัน\n**คงเหลือ: {left_sick} วัน**")
+            # ตารางสรุปวันลา
+            df_quota = pd.DataFrame([
+                {
+                    "ประเภท": "🏖 ลาพักร้อน",
+                    "สิทธิ์รวม": total_annual,
+                    "อนุมัติแล้ว": approved_annual,
+                    "รออนุมัติ": pending_annual,
+                    "คงเหลือ": left_annual,
+                },
+                {
+                    "ประเภท": "📋 ลากิจ",
+                    "สิทธิ์รวม": int(emp.get("ลากิจ", 0)),
+                    "อนุมัติแล้ว": approved_personal,
+                    "รออนุมัติ": pending_personal,
+                    "คงเหลือ": left_personal,
+                },
+                {
+                    "ประเภท": "🏥 ลาป่วย",
+                    "สิทธิ์รวม": int(emp.get("ลาป่วย", 0)),
+                    "อนุมัติแล้ว": approved_sick,
+                    "รออนุมัติ": pending_sick,
+                    "คงเหลือ": left_sick,
+                },
+            ])
+            st.dataframe(df_quota, use_container_width=True, hide_index=True)
+            if left_annual <= 0 or left_personal <= 0 or left_sick <= 0:
+                st.error("⚠️ วันลาบางประเภทหมดแล้ว!")
         else:
             st.error("ไม่พบรหัสพนักงานนี้ในระบบ")
 
