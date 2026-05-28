@@ -255,22 +255,14 @@ def export_summary_excel(employees):
             "ลาป่วยคงเหลือ": int(e["ลาป่วย"]) - used_sick,
         })
     df = pd.DataFrame(rows)
-    df_total = pd.DataFrame([{
-        "รหัส": "",
-        "ชื่อ-นามสกุล": f"รวมทั้งหมด {len(employees)} คน",
-        "ตำแหน่ง": "",
-        "แผนก": "",
-        "สิทธิ์ลาพักร้อน": int(df["สิทธิ์ลาพักร้อน"].sum()),
-        "ลาพักร้อนที่ใช้": int(df["ลาพักร้อนที่ใช้"].sum()),
-        "ลาพักร้อนคงเหลือ": int(df["ลาพักร้อนคงเหลือ"].sum()),
-        "สิทธิ์ลากิจ": int(df["สิทธิ์ลากิจ"].sum()),
-        "ลากิจที่ใช้": int(df["ลากิจที่ใช้"].sum()),
-        "ลากิจคงเหลือ": int(df["ลากิจคงเหลือ"].sum()),
-        "สิทธิ์ลาป่วย": int(df["สิทธิ์ลาป่วย"].sum()),
-        "ลาป่วยที่ใช้": int(df["ลาป่วยที่ใช้"].sum()),
-        "ลาป่วยคงเหลือ": int(df["ลาป่วยคงเหลือ"].sum()),
-    }])
-    df_final = pd.concat([df, df_total], ignore_index=True)
+    # แปลง column ตัวเลขให้เป็น int
+    num_cols = ["สิทธิ์ลาพักร้อน","ลาพักร้อนที่ใช้","ลาพักร้อนคงเหลือ",
+                "สิทธิ์ลากิจ","ลากิจที่ใช้","ลากิจคงเหลือ",
+                "สิทธิ์ลาป่วย","ลาป่วยที่ใช้","ลาป่วยคงเหลือ"]
+    for c in num_cols:
+        if c in df.columns:
+            df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0).astype(int)
+    df_final = df.copy()
     from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
 
