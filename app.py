@@ -166,10 +166,27 @@ def update_leave_status(leave_id, status, note):
 
 def get_used_days(emp_id, leave_type=None):
     leaves = load_leaves()
-    result = [l for l in leaves if str(l["รหัส"]) == str(emp_id) and l["สถานะ"] == "อนุมัติแล้ว"]
+    result = [l for l in leaves if str(l.get("รหัส","")) == str(emp_id)
+              and l.get("สถานะ","") in ["อนุมัติแล้ว", "รออนุมัติ"]]
     if leave_type:
-        result = [l for l in result if l["ประเภท"] == leave_type]
-    return sum(int(l["จำนวนวัน"]) for l in result)
+        result = [l for l in result if l.get("ประเภท","") == leave_type]
+    return sum(int(l.get("จำนวนวัน",0)) for l in result)
+
+def get_approved_days(emp_id, leave_type=None):
+    leaves = load_leaves()
+    result = [l for l in leaves if str(l.get("รหัส","")) == str(emp_id)
+              and l.get("สถานะ","") == "อนุมัติแล้ว"]
+    if leave_type:
+        result = [l for l in result if l.get("ประเภท","") == leave_type]
+    return sum(int(l.get("จำนวนวัน",0)) for l in result)
+
+def get_pending_days(emp_id, leave_type=None):
+    leaves = load_leaves()
+    result = [l for l in leaves if str(l.get("รหัส","")) == str(emp_id)
+              and l.get("สถานะ","") == "รออนุมัติ"]
+    if leave_type:
+        result = [l for l in result if l.get("ประเภท","") == leave_type]
+    return sum(int(l.get("จำนวนวัน",0)) for l in result)
 
 # ===============================
 # Config
@@ -258,31 +275,31 @@ if menu == "📝 ยื่นคำขอลา":
     if emp_id:
         emp = get_employee(emp_id.strip())
         if emp:
-            carry        = int(emp.get("วันสะสม", 0) or 0)
-            total_annual = int(emp.get("ลาพักร้อน", 0)) + carry
-            used_annual  = get_used_days(emp["รหัส"], "ลาพักร้อน")
-            used_personal= get_used_days(emp["รหัส"], "ลากิจ")
-            used_sick    = get_used_days(emp["รหัส"], "ลาป่วย")
-            left_annual  = total_annual - used_annual
-            left_personal= int(emp.get("ลากิจ", 0)) - used_personal
-            left_sick    = int(emp.get("ลาป่วย", 0)) - used_sick
+            carry         = int(emp.get("วันสะสม", 0) or 0)
+            total_annual  = int(emp.get("ลาพักร้อน", 0)) + carry
+            # แยก อนุมัติแล้ว vs รออนุมัติ
+            approved_annual   = get_approved_days(emp["รหัส"], "ลาพักร้อน")
+            pending_annual    = get_pending_days(emp["รหัส"], "ลาพักร้อน")
+            approved_personal = get_approved_days(emp["รหัส"], "ลากิจ")
+            pending_personal  = get_pending_days(emp["รหัส"], "ลากิจ")
+            approved_sick     = get_approved_days(emp["รหัส"], "ลาป่วย")
+            pending_sick      = get_pending_days(emp["รหัส"], "ลาป่วย")
+            left_annual   = total_annual - approved_annual - pending_annual
+            left_personal = int(emp.get("ลากิจ", 0)) - approved_personal - pending_personal
+            left_sick     = int(emp.get("ลาป่วย", 0)) - approved_sick - pending_sick
+
             st.success(f"👤 {emp['ชื่อ']} — {emp['ตำแหน่ง']} ({emp['แผนก']})")
+
             col1, col2, col3 = st.columns(3)
             with col1:
-                if left_annual <= 0:
-                    st.error(f"🏖 ลาพักร้อน: เหลือ **{left_annual} วัน**")
-                else:
-                    st.info(f"🏖 ลาพักร้อน: เหลือ **{left_annual} วัน**")
+                color = "error" if left_annual <= 0 else "info"
+                getattr(st, color)(f"🏖 **ลาพักร้อน**\nสิทธิ์รวม: {total_annual} วัน\nอนุมัติแล้ว: {approved_annual} วัน\nรออนุมัติ: {pending_annual} วัน\n**คงเหลือ: {left_annual} วัน**")
             with col2:
-                if left_personal <= 0:
-                    st.error(f"📋 ลากิจ: เหลือ **{left_personal} วัน**")
-                else:
-                    st.info(f"📋 ลากิจ: เหลือ **{left_personal} วัน**")
+                color = "error" if left_personal <= 0 else "info"
+                getattr(st, color)(f"📋 **ลากิจ**\nสิทธิ์รวม: {int(emp.get('ลากิจ',0))} วัน\nอนุมัติแล้ว: {approved_personal} วัน\nรออนุมัติ: {pending_personal} วัน\n**คงเหลือ: {left_personal} วัน**")
             with col3:
-                if left_sick <= 0:
-                    st.error(f"🏥 ลาป่วย: เหลือ **{left_sick} วัน**")
-                else:
-                    st.info(f"🏥 ลาป่วย: เหลือ **{left_sick} วัน**")
+                color = "error" if left_sick <= 0 else "info"
+                getattr(st, color)(f"🏥 **ลาป่วย**\nสิทธิ์รวม: {int(emp.get('ลาป่วย',0))} วัน\nอนุมัติแล้ว: {approved_sick} วัน\nรออนุมัติ: {pending_sick} วัน\n**คงเหลือ: {left_sick} วัน**")
         else:
             st.error("ไม่พบรหัสพนักงานนี้ในระบบ")
 
@@ -305,11 +322,11 @@ if menu == "📝 ยื่นคำขอลา":
                 elif days <= 0:
                     st.error("วันที่ไม่ถูกต้อง")
                 elif leave_type == "ลาพักร้อน" and days > left_annual:
-                    st.error(f"❌ วันลาพักร้อนไม่เพียงพอ! เหลือ {left_annual} วัน แต่ขอลา {days} วัน")
+                    st.error(f"❌ วันลาพักร้อนไม่เพียงพอ! คงเหลือ {left_annual} วัน แต่ขอลา {days} วัน")
                 elif leave_type == "ลากิจ" and days > left_personal:
-                    st.error(f"❌ วันลากิจไม่เพียงพอ! เหลือ {left_personal} วัน แต่ขอลา {days} วัน")
+                    st.error(f"❌ วันลากิจไม่เพียงพอ! คงเหลือ {left_personal} วัน แต่ขอลา {days} วัน")
                 elif leave_type == "ลาป่วย" and days > left_sick:
-                    st.error(f"❌ วันลาป่วยไม่เพียงพอ! เหลือ {left_sick} วัน แต่ขอลา {days} วัน")
+                    st.error(f"❌ วันลาป่วยไม่เพียงพอ! คงเหลือ {left_sick} วัน แต่ขอลา {days} วัน")
                 else:
                     leaves = load_leaves()
                     new_leave = {
