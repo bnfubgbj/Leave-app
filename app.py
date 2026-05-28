@@ -187,6 +187,25 @@ def get_pending_days(emp_id, leave_type=None):
         result = [l for l in result if l.get("ประเภท","") == leave_type]
     return sum(int(l.get("จำนวนวัน",0)) for l in result)
 
+def check_overlap(emp_id, start, end):
+    """เช็คว่าวันที่ขอลาซ้อนกับวันลาที่รออนุมัติหรืออนุมัติแล้วไหม"""
+    from datetime import datetime
+    leaves = load_leaves()
+    pending = [l for l in leaves if str(l.get("รหัส","")) == str(emp_id)
+               and l.get("สถานะ","") in ["รออนุมัติ", "อนุมัติแล้ว"]]
+    new_start = datetime.strptime(str(start), "%Y-%m-%d")
+    new_end   = datetime.strptime(str(end), "%Y-%m-%d")
+    overlaps  = []
+    for l in pending:
+        try:
+            l_start = datetime.strptime(str(l.get("วันเริ่ม","")), "%Y-%m-%d")
+            l_end   = datetime.strptime(str(l.get("วันสิ้นสุด","")), "%Y-%m-%d")
+            if new_start <= l_end and new_end >= l_start:
+                overlaps.append(l)
+        except:
+            pass
+    return overlaps
+
 # ===============================
 # Config
 # ===============================
@@ -360,6 +379,10 @@ if menu == "📝 ยื่นคำขอลา":
                     st.error(f"❌ วันลากิจไม่เพียงพอ! คงเหลือ {left_personal} วัน แต่ขอลา {days} วัน")
                 elif leave_type == "ลาป่วย" and days > left_sick:
                     st.error(f"❌ วันลาป่วยไม่เพียงพอ! คงเหลือ {left_sick} วัน แต่ขอลา {days} วัน")
+                elif check_overlap(emp["รหัส"], start, end):
+                    overlap_list = check_overlap(emp["รหัส"], start, end)
+                    overlap_text = ", ".join([f"{l.get('วันเริ่ม','')} → {l.get('วันสิ้นสุด','')} ({l.get('สถานะ','')})" for l in overlap_list])
+                    st.error(f"❌ วันที่เลือกซ้ำกับวันลาที่มีอยู่แล้ว! ({overlap_text})")
                 else:
                     leaves = load_leaves()
                     new_leave = {
