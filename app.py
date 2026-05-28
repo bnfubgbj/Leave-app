@@ -294,6 +294,8 @@ def do_logout():
 
 if not st.session_state.logged_in:
     st.title("🌿 ระบบจัดการใบลา")
+    st.caption("VIRTUARCH CO.,LTD")
+    st.divider()
     st.subheader("🔐 เข้าสู่ระบบ")
     with st.form("login_form"):
         # โหลดรายชื่อพนักงาน
@@ -344,6 +346,9 @@ current_user = st.session_state.login_user
 is_admin = st.session_state.is_admin
 
 with st.sidebar:
+    st.markdown("### 🌿 ระบบใบลา")
+    st.caption("VIRTUARCH CO.,LTD")
+    st.divider()
     if is_admin:
         st.success("👑 Admin")
     else:
