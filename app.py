@@ -427,11 +427,21 @@ if is_admin:
         "👥 จัดการพนักงาน (Admin)",
     ])
 else:
+    my_id = current_user.get("รหัส","") if current_user else ""
+    all_leaves = load_leaves()
+    # นับรายการที่รออนุมัติ (ไม่ใช่ของตัวเอง)
+    pending_count = len([l for l in all_leaves 
+                        if l.get("สถานะ","") == "รออนุมัติ"
+                        and normalize_id(str(l.get("รหัส",""))) != normalize_id(my_id)])
+    approve_label = f"✅ อนุมัติใบลา ({pending_count} รายการค้าง)" if pending_count > 0 else "✅ อนุมัติใบลา"
     menu = st.sidebar.radio("เมนู", [
         "📝 ยื่นคำขอลา",
-        "✅ อนุมัติใบลา",
+        approve_label,
         "📋 ประวัติการลา",
     ])
+    # normalize menu name
+    if "อนุมัติใบลา" in menu:
+        menu = "✅ อนุมัติใบลา"
 
 # ===============================
 if menu == "📝 ยื่นคำขอลา":
