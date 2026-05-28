@@ -577,23 +577,56 @@ if menu == "📝 ยื่นคำขอลา":
     if emp:
         with st.form("leave_form"):
             leave_type = st.selectbox("ประเภทการลา", ["ลาพักร้อน", "ลาป่วย", "ลากิจ", "อื่นๆ"])
+
+            # ช่วงที่ 1
+            st.markdown("**ช่วงที่ 1**")
             col1, col2 = st.columns(2)
             with col1:
-                start = st.date_input("วันที่เริ่มลา", date.today())
+                start1 = st.date_input("วันที่เริ่ม", date.today(), key="s1")
             with col2:
-                end = st.date_input("วันที่สิ้นสุด", date.today())
-            days = (end - start).days + 1
-            if days > 0:
-                st.info(f"จำนวนวันลา: {days} วัน")
+                end1 = st.date_input("วันที่สิ้นสุด", date.today(), key="e1")
+            days1 = max((end1 - start1).days + 1, 0)
+
+            # ช่วงที่ 2 (ไม่บังคับ)
+            st.markdown("**ช่วงที่ 2** (ถ้ามี)")
+            use_range2 = st.checkbox("เพิ่มช่วงที่ 2")
+            days2 = 0
+            start2 = end2 = None
+            if use_range2:
+                col3, col4 = st.columns(2)
+                with col3:
+                    start2 = st.date_input("วันที่เริ่ม", date.today(), key="s2")
+                with col4:
+                    end2 = st.date_input("วันที่สิ้นสุด", date.today(), key="e2")
+                days2 = max((end2 - start2).days + 1, 0)
+
+            total_days = days1 + days2
+            days = total_days
+            start = start1
+            end = end2 if use_range2 and end2 else end1
+
+            if total_days > 0:
+                if use_range2:
+                    st.info(f"รวมจำนวนวันลา: **{total_days} วัน** (ช่วง 1: {days1} วัน + ช่วง 2: {days2} วัน)")
+                else:
+                    st.info(f"จำนวนวันลา: **{total_days} วัน**")
+
+            # เช็ควันซ้ำ
             has_overlap = False
-            if days > 0:
-                overlap_now = check_overlap(emp["รหัส"], start, end)
-                if overlap_now:
+            if days1 > 0:
+                ov1 = check_overlap(emp["รหัส"], start1, end1)
+                if ov1:
                     has_overlap = True
-                    overlap_txt = ", ".join([f"{l.get('วันเริ่ม','')} → {l.get('วันสิ้นสุด','')} ({l.get('สถานะ','')})" for l in overlap_now])
-                    st.warning(f"⚠️ ท่านไม่สามารถเลือกวันดังกล่าวได้ เนื่องจากเป็นวันที่ท่านได้ยื่นลาไว้ก่อนหน้านี้แล้ว ({overlap_txt})")
-            date_ranges = [(start, end, days)]
-            total_days = days
+                    st.warning(f"⚠️ ช่วงที่ 1 ซ้ำกับวันลาที่มีอยู่แล้ว!")
+            if use_range2 and days2 > 0 and start2 and end2:
+                ov2 = check_overlap(emp["รหัส"], start2, end2)
+                if ov2:
+                    has_overlap = True
+                    st.warning(f"⚠️ ช่วงที่ 2 ซ้ำกับวันลาที่มีอยู่แล้ว!")
+
+            date_ranges = [(start1, end1, days1)]
+            if use_range2 and days2 > 0 and start2 and end2:
+                date_ranges.append((start2, end2, days2))
             reason = st.text_area("เหตุผล")
             # ดึงชื่อหัวหน้าจากข้อมูลพนักงาน
             boss_id_val = str(emp.get("รหัสหัวหน้า", "")).strip().zfill(4)
