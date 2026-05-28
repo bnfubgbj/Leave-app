@@ -65,7 +65,7 @@ def send_email_notification(leave, receiver=None):
 # ===============================
 # Google Sheets Connection
 # ===============================
-@st.cache_resource(ttl=30)
+@st.cache_resource(ttl=60)
 def get_client():
     creds_dict = st.secrets["gcp_service_account"]
     creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
@@ -353,9 +353,13 @@ if not st.session_state.logged_in:
         st.markdown("<p style='color:gray;'>VIRTUARCH CO.,LTD</p>", unsafe_allow_html=True)
     st.divider()
     st.subheader("🔐 เข้าสู่ระบบ")
+    # โหลดรายชื่อพนักงานก่อนฟอร์ม
+    all_emps = load_employees()
+    if not all_emps:
+        st.warning("⚠️ กำลังโหลดข้อมูล กรุณารอสักครู่แล้ว refresh หน้าใหม่")
+        st.stop()
+
     with st.form("login_form"):
-        # โหลดรายชื่อพนักงาน
-        all_emps = load_employees()
         emp_options = ["-- เลือกชื่อพนักงาน --"] + [f"{e.get('รหัส','')} - {e.get('ชื่อ','')}" for e in all_emps]
         selected_emp = st.selectbox("เลือกชื่อพนักงาน", emp_options)
         login_pw = st.text_input("รหัสผ่าน", type="password")
