@@ -271,9 +271,65 @@ def export_summary_excel(employees):
         "ลาป่วยคงเหลือ": int(df["ลาป่วยคงเหลือ"].sum()),
     }])
     df_final = pd.concat([df, df_total], ignore_index=True)
+    from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+
     output = BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
         df_final.to_excel(writer, index=False, sheet_name="สรุปการลา")
+        ws = writer.sheets["สรุปการลา"]
+
+        # สี Header
+        header_fill = PatternFill("solid", fgColor="1F4E79")  # น้ำเงินเข้ม
+        header_font = Font(bold=True, color="FFFFFF", size=11)
+
+        # สีแถวพนักงานสลับกัน
+        row_fill1 = PatternFill("solid", fgColor="D6E4F0")  # ฟ้าอ่อน
+        row_fill2 = PatternFill("solid", fgColor="FFFFFF")  # ขาว
+
+        # สีแถวรวม
+        total_fill = PatternFill("solid", fgColor="2E75B6")  # น้ำเงิน
+        total_font = Font(bold=True, color="FFFFFF", size=11)
+
+        # Border
+        thin = Side(style="thin", color="B8CCE4")
+        border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+        # จัด Header
+        for col in range(1, ws.max_column + 1):
+            cell = ws.cell(row=1, column=col)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            cell.border = border
+
+        # จัดแถวข้อมูล
+        for row in range(2, ws.max_row + 1):
+            is_total = row == ws.max_row
+            for col in range(1, ws.max_column + 1):
+                cell = ws.cell(row=row, column=col)
+                cell.border = border
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+                if is_total:
+                    cell.fill = total_fill
+                    cell.font = total_font
+                elif row % 2 == 0:
+                    cell.fill = row_fill1
+                else:
+                    cell.fill = row_fill2
+
+        # ปรับความกว้าง column อัตโนมัติ
+        for col in range(1, ws.max_column + 1):
+            max_len = 0
+            for row in range(1, ws.max_row + 1):
+                val = ws.cell(row=row, column=col).value
+                if val:
+                    max_len = max(max_len, len(str(val)))
+            ws.column_dimensions[get_column_letter(col)].width = min(max_len + 4, 25)
+
+        # ความสูงแถว header
+        ws.row_dimensions[1].height = 35
+
     return output.getvalue()
 
 # ===============================
