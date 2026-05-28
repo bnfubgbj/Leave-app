@@ -316,6 +316,16 @@ if menu == "📝 ยื่นคำขอลา":
             st.dataframe(df_quota, use_container_width=True, hide_index=True)
             if left_annual <= 0 or left_personal <= 0 or left_sick <= 0:
                 st.error("⚠️ วันลาบางประเภทหมดแล้ว!")
+
+            # แสดงรายการที่รออนุมัติ
+            all_leaves = load_leaves()
+            pending_leaves = [l for l in all_leaves 
+                            if normalize_id(str(l.get("รหัส",""))) == normalize_id(emp_id)
+                            and l.get("สถานะ","") == "รออนุมัติ"]
+            if pending_leaves:
+                st.warning("⏳ รายการที่รออนุมัติ")
+                for pl in pending_leaves:
+                    st.info(f"📅 {pl.get('ประเภท','')} | {pl.get('วันเริ่ม','')} → {pl.get('วันสิ้นสุด','')} | {pl.get('จำนวนวัน','')} วัน | เหตุผล: {pl.get('เหตุผล','')}")
         else:
             st.error("ไม่พบรหัสพนักงานนี้ในระบบ")
 
