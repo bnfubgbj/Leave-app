@@ -605,9 +605,29 @@ elif menu == "✅ อนุมัติใบลา":
     approver_id = approver_emp.get("รหัส","") if approver_emp else ""
 
     leaves = load_leaves()
-    # แสดงเฉพาะรายการที่ส่งมาให้คนนี้อนุมัติ (ไม่แสดงของตัวเอง)
+    all_emps = load_employees()
+
+    # หาลูกน้องของคนนี้
+    subordinates = [e.get("รหัส","") for e in all_emps
+                   if normalize_id(str(e.get("รหัสหัวหน้า",""))) == normalize_id(approver_id)]
+
+    # แสดงเฉพาะรายการที่
+    # 1. รออนุมัติ
+    # 2. ไม่ใช่ของตัวเอง
+    # 3. เป็นลูกน้องของคนนี้ หรือ ผู้อนุมัติในใบลาตรงกับรหัส/ชื่อคนนี้
+    def is_for_approver(l):
+        leave_emp_id = normalize_id(str(l.get("รหัส","")))
+        approver_field = str(l.get("ผู้อนุมัติ",""))
+        # ลูกน้องของคนนี้
+        is_subordinate = leave_emp_id in [normalize_id(s) for s in subordinates]
+        # ผู้อนุมัติระบุชื่อหรือรหัสคนนี้
+        approver_name = current_user.get("ชื่อ","") if current_user else ""
+        is_named = approver_id in approver_field or approver_name in approver_field
+        return is_subordinate or is_named
+
     pending = [l for l in leaves if l.get("สถานะ","") == "รออนุมัติ"
-               and normalize_id(str(l.get("รหัส",""))) != normalize_id(approver_id)]
+               and normalize_id(str(l.get("รหัส",""))) != normalize_id(approver_id)
+               and is_for_approver(l)]
 
     if not pending:
         st.info("✅ ไม่มีรายการรออนุมัติในขณะนี้")
