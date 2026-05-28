@@ -78,13 +78,15 @@ def get_sheet(name):
 # ===============================
 # Employees
 # ===============================
-def load_employees():
+def load_employees(include_inactive=False):
     try:
         ws = get_sheet("employees")
         data = ws.get_all_records(numericise_ignore=["all"])
         for e in data:
             if "รหัส" in e:
                 e["รหัส"] = str(e["รหัส"]).strip().zfill(4)
+        if not include_inactive:
+            data = [e for e in data if str(e.get("สถานะ","active")).strip().lower() != "inactive"]
         return data
     except:
         return []
@@ -99,7 +101,8 @@ def save_employee(emp):
     ws.append_row([
         emp["รหัส"], emp["ชื่อ"], emp["ตำแหน่ง"], emp["แผนก"],
         emp["วันเริ่มงาน"], emp["ลาพักร้อน"], emp["ลากิจ"], emp["ลาป่วย"],
-        emp.get("รหัสหัวหน้า",""), emp.get("อีเมลหัวหน้า","")
+        emp.get("รหัสหัวหน้า",""), emp.get("อีเมลหัวหน้า",""),
+        emp.get("วันสะสม","0"), emp.get("รหัสผ่าน",""), "active"
     ])
 
 def update_employee(emp_id, updated):
@@ -162,6 +165,40 @@ def update_leave_status(leave_id, status, note):
         if str(row[0]).strip() == str(leave_id).strip():
             ws.update_cell(i + 1, 12, status)
             ws.update_cell(i + 1, 13, note)
+            break
+
+def deactivate_employee(emp_id):
+    ws = get_sheet("employees")
+    records = ws.get_all_values()
+    headers = records[0] if records else []
+    # หาคอลัมน์ สถานะ
+    try:
+        status_col = headers.index("สถานะ") + 1
+    except:
+        # ถ้าไม่มีคอลัมน์ สถานะ ให้เพิ่มที่ท้าย
+        status_col = len(headers) + 1
+        ws.update_cell(1, status_col, "สถานะ")
+
+    for i, row in enumerate(records):
+        if i == 0:
+            continue
+        if str(row[0]).strip().zfill(4) == emp_id:
+            ws.update_cell(i + 1, status_col, "inactive")
+            break
+
+def activate_employee(emp_id):
+    ws = get_sheet("employees")
+    records = ws.get_all_values()
+    headers = records[0] if records else []
+    try:
+        status_col = headers.index("สถานะ") + 1
+    except:
+        return
+    for i, row in enumerate(records):
+        if i == 0:
+            continue
+        if str(row[0]).strip().zfill(4) == emp_id:
+            ws.update_cell(i + 1, status_col, "active")
             break
 
 def get_used_days(emp_id, leave_type=None):
@@ -429,17 +466,43 @@ if is_admin:
 else:
     my_id = current_user.get("รหัส","") if current_user else ""
     all_leaves = load_leaves()
-    # นับรายการที่รออนุมัติ (ไม่ใช่ของตัวเอง)
-    pending_count = len([l for l in all_leaves 
-                        if l.get("สถานะ","") == "รออนุมัติ"
-                        and normalize_id(str(l.get("รหัส",""))) != normalize_id(my_id)])
-    approve_label = f"✅ อนุมัติใบลา ({pending_count} รายการค้าง)" if pending_count > 0 else "✅ อนุมัติใบลา"
+    all_emps_sidebar = load_employees()
+
+    # นับรายการที่รออนุมัติจากคนนี้
+    subordinates_sidebar = [e.get("รหัส","") for e in all_emps_sidebar
+                           if normalize_id(str(e.get("รหัสหัวหน้า",""))) == normalize_id(my_id)]
+
+    def is_for_me(l):
+        leave_emp_id = normalize_id(str(l.get("รหัส","")))
+        approver_field = str(l.get("ผู้อนุมัติ",""))
+        approver_name = current_user.get("ชื่อ","") if current_user else ""
+        is_sub = leave_emp_id in [normalize_id(s) for s in subordinates_sidebar]
+        is_named = my_id in approver_field or approver_name in approver_field
+        return is_sub or is_named
+
+    # รายการที่รอให้ฉันอนุมัติ
+    waiting_for_me = [l for l in all_leaves
+                     if l.get("สถานะ","") == "รออนุมัติ"
+                     and normalize_id(str(l.get("รหัส",""))) != normalize_id(my_id)
+                     and is_for_me(l)]
+
+    # รายการของฉันที่รออนุมัติ
+    my_pending = [l for l in all_leaves
+                 if l.get("สถานะ","") == "รออนุมัติ"
+                 and normalize_id(str(l.get("รหัส",""))) == normalize_id(my_id)]
+
+    # แสดงสรุปใน sidebar
+    if waiting_for_me:
+        st.sidebar.error(f"📋 {len(waiting_for_me)} รายการรอการอนุมัติจากคุณ")
+    if my_pending:
+        st.sidebar.warning(f"⏳ {len(my_pending)} รายการของคุณรออนุมัติอยู่")
+
+    approve_label = f"✅ อนุมัติใบลา ({len(waiting_for_me)} ค้าง)" if waiting_for_me else "✅ อนุมัติใบลา"
     menu = st.sidebar.radio("เมนู", [
         "📝 ยื่นคำขอลา",
         approve_label,
         "📋 ประวัติการลา",
     ])
-    # normalize menu name
     if "อนุมัติใบลา" in menu:
         menu = "✅ อนุมัติใบลา"
 
@@ -600,9 +663,14 @@ if menu == "📝 ยื่นคำขอลา":
 elif menu == "✅ อนุมัติใบลา":
     st.header("อนุมัติใบลา")
 
-    # ใช้ข้อมูลจาก Login โดยตรง ไม่ต้องกรอกรหัสซ้ำ
     approver_emp = current_user
     approver_id = approver_emp.get("รหัส","") if approver_emp else ""
+
+    if waiting_for_me:
+        st.error(f"📋 มี **{len(waiting_for_me)} รายการ** รอการอนุมัติจากคุณ")
+    if my_pending:
+        st.warning(f"⏳ ใบลาของคุณ **{len(my_pending)} รายการ** กำลังรออนุมัติอยู่")
+    st.divider()
 
     leaves = load_leaves()
     all_emps = load_employees()
@@ -786,14 +854,27 @@ elif menu == "👥 จัดการพนักงาน (Admin)":
 
     if employees:
         st.divider()
-        st.subheader("🗑 ลบพนักงาน")
-        emp_list2 = [f"{e['รหัส']} — {e['ชื่อ']}" for e in employees]
+        st.subheader("🔴 ปิดการใช้งานพนักงาน")
+        st.caption("ข้อมูลยังอยู่ แต่พนักงานจะ Login ไม่ได้")
+        # โหลดทั้ง active และ inactive
+        all_emps_admin = load_employees(include_inactive=True)
+        emp_list2 = [f"{e['รหัส']} — {e['ชื่อ']} {'🔴' if str(e.get('สถานะ','')).lower() == 'inactive' else '🟢'}" for e in all_emps_admin]
         selected_del = st.selectbox("เลือกพนักงาน", emp_list2, key="del_select")
-        if st.button("🗑 ลบ"):
-            del_id = selected_del.split(" — ")[0]
-            delete_employee(del_id)
-            st.success("ลบเรียบร้อย!")
-            st.rerun()
+        del_id = selected_del.split(" — ")[0]
+        del_emp = next((e for e in all_emps_admin if e.get("รหัส","") == del_id), None)
+        col1, col2 = st.columns(2)
+        with col1:
+            if del_emp and str(del_emp.get("สถานะ","")).lower() != "inactive":
+                if st.button("🔴 ปิดการใช้งาน"):
+                    deactivate_employee(del_id)
+                    st.success(f"ปิดการใช้งาน {del_emp.get('ชื่อ','')} แล้ว!")
+                    st.rerun()
+        with col2:
+            if del_emp and str(del_emp.get("สถานะ","")).lower() == "inactive":
+                if st.button("🟢 เปิดการใช้งาน"):
+                    activate_employee(del_id)
+                    st.success(f"เปิดการใช้งาน {del_emp.get('ชื่อ','')} แล้ว!")
+                    st.rerun()
 
     st.divider()
     st.subheader("🔑 เปลี่ยนรหัสผ่าน")
