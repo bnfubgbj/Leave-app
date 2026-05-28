@@ -293,8 +293,14 @@ def do_logout():
     st.session_state.is_admin = False
 
 if not st.session_state.logged_in:
-    st.title("🌿 ระบบจัดการใบลา")
-    st.caption("VIRTUARCH CO.,LTD")
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        try:
+            st.image("logo.jpg", width=180)
+        except:
+            st.title("🌿 VIRTUARCH")
+    st.markdown("<h2 style='text-align:center;'>ระบบจัดการใบลา</h2>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:center; color:gray;'>VIRTUARCH CO.,LTD</p>", unsafe_allow_html=True)
     st.divider()
     st.subheader("🔐 เข้าสู่ระบบ")
     with st.form("login_form"):
@@ -346,8 +352,11 @@ current_user = st.session_state.login_user
 is_admin = st.session_state.is_admin
 
 with st.sidebar:
-    st.markdown("### 🌿 ระบบใบลา")
-    st.caption("VIRTUARCH CO.,LTD")
+    try:
+        st.image("logo.jpg", width=120)
+    except:
+        st.markdown("### 🌿 VIRTUARCH")
+    st.caption("VIRTUARCH CO.,LTD | ระบบจัดการใบลา")
     st.divider()
     if is_admin:
         st.success("👑 Admin")
