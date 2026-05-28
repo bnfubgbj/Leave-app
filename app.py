@@ -293,15 +293,18 @@ def do_logout():
     st.session_state.is_admin = False
 
 if not st.session_state.logged_in:
-    col1, col2 = st.columns([1, 4])
-    with col1:
+    col_logo, col_title = st.columns([1, 5])
+    with col_logo:
         try:
-            st.image("logo.jpg", width=90)
+            st.image("logo.jpg", width=80)
         except:
             pass
-    with col2:
-        st.markdown("<h1 style='margin-top:10px;'>ระบบจัดการใบลา</h1>", unsafe_allow_html=True)
-        st.markdown("<p style='color:gray; margin-top:-15px;'>VIRTUARCH CO.,LTD</p>", unsafe_allow_html=True)
+    with col_title:
+        st.markdown("""
+        <div style="display:flex; flex-direction:column; justify-content:center; height:80px;">
+            <h1 style="margin:0; padding:0; line-height:1.1; font-size:2rem;">ระบบจัดการใบลา</h1>
+            <p style="margin:0; color:gray; font-size:13px;">VIRTUARCH CO.,LTD</p>
+        </div>""", unsafe_allow_html=True)
     st.divider()
     st.subheader("🔐 เข้าสู่ระบบ")
     with st.form("login_form"):
