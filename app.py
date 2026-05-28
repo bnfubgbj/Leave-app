@@ -473,30 +473,17 @@ if menu == "📝 ยื่นคำขอลา":
 elif menu == "✅ อนุมัติใบลา":
     st.header("อนุมัติใบลา")
 
-    # ให้ผู้อนุมัติกรอกรหัสพนักงานก่อน
-    approver_id = st.text_input("กรอกรหัสพนักงานของคุณ เช่น 0001")
-    approver_emp = None
-    if approver_id:
-        approver_emp = get_employee(approver_id.strip())
-        if approver_emp:
-            st.success(f"👤 {approver_emp['ชื่อ']} — {approver_emp['ตำแหน่ง']} ({approver_emp['แผนก']})")
-        else:
-            st.error("ไม่พบรหัสพนักงานนี้ในระบบ")
-
-    if not approver_emp:
-        st.stop()
+    # ใช้ข้อมูลจาก Login โดยตรง ไม่ต้องกรอกรหัสซ้ำ
+    approver_emp = current_user
+    approver_id = approver_emp.get("รหัส","") if approver_emp else ""
 
     leaves = load_leaves()
-    # แสดงเฉพาะรายการที่ส่งให้ผู้อนุมัตินี้
-    pending = [l for l in leaves if l.get("สถานะ","") == "รออนุมัติ" and 
-               (l.get("ผู้อนุมัติ","") == approver_emp.get("ตำแหน่ง","") or 
-                l.get("รหัส","") != approver_id.strip())]
-    
-    # กรองไม่ให้เห็นใบลาของตัวเอง
-    pending = [l for l in pending if normalize_id(str(l.get("รหัส",""))) != normalize_id(approver_id)]
+    # แสดงเฉพาะรายการที่ส่งมาให้คนนี้อนุมัติ (ไม่แสดงของตัวเอง)
+    pending = [l for l in leaves if l.get("สถานะ","") == "รออนุมัติ"
+               and normalize_id(str(l.get("รหัส",""))) != normalize_id(approver_id)]
 
     if not pending:
-        st.info("ไม่มีรายการรออนุมัติ")
+        st.info("✅ ไม่มีรายการรออนุมัติในขณะนี้")
     for i, l in enumerate(pending):
         with st.expander(f"📋 {l['ชื่อ']} — {l['ประเภท']} ({l['จำนวนวัน']} วัน)"):
             st.write(f"**แผนก:** {l['แผนก']} | **ตำแหน่ง:** {l['ตำแหน่ง']}")
