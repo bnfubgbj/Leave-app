@@ -610,8 +610,8 @@ if menu == "📝 ยื่นคำขอลา":
                 except:
                     pass
         import json
-        booked_dates_js = json.dumps(list(booked_info.keys()), ensure_ascii=False)
         booked_info_js = json.dumps(booked_info, ensure_ascii=False)
+        booked_dates_js = json.dumps(list(booked_info.keys()), ensure_ascii=False)
 
         # คำนวณสิทธิ์คงเหลือสำหรับ JS
         _leave_type_temp = "ลาพักร้อน"  # default, will be updated after form
@@ -664,7 +664,8 @@ if menu == "📝 ยื่นคำขอลา":
         </div>
         <div id="sel-out" style="display:none"></div>
         <script>
-        const bookedInfo = {booked_info_js};
+        var bookedInfo = '{booked_info_js}';
+        try{{ bookedInfo = JSON.parse(bookedInfo); }}catch(e){{ bookedInfo = {}; }}
         const bookedDates = Object.keys(bookedInfo);
         const quotaMap = {{
             "ลาพักร้อน": {left_annual},
@@ -768,6 +769,7 @@ if menu == "📝 ยื่นคำขอลา":
                 g.appendChild(e);
             }}
         }}
+        window.onload = function() { render(); };
         render();
         </script>
         """
