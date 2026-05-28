@@ -613,6 +613,10 @@ if menu == "📝 ยื่นคำขอลา":
         booked_info_js = str(booked_info).replace("'", '"')
         max_days_js = left_annual if True else 0  # will be overridden
 
+        # คำนวณสิทธิ์คงเหลือสำหรับ JS
+        _leave_type_temp = "ลาพักร้อน"  # default, will be updated after form
+        max_days_for_cal = left_annual  # default พักร้อน
+
         # HTML Calendar
         cal_html = f"""
         <style>
@@ -636,6 +640,13 @@ if menu == "📝 ยื่นคำขอลา":
         .legend{{display:flex;gap:10px;margin-top:8px;font-size:11px;flex-wrap:wrap;}}
         .leg{{display:flex;align-items:center;gap:4px;}}
         .ld{{width:14px;height:14px;border-radius:3px;}}
+        @keyframes shake{{
+            0%,100%{{transform:translateX(0);}}
+            20%{{transform:translateX(-4px) scale(1.1);background:#E53935!important;color:white!important;}}
+            40%{{transform:translateX(4px);}}
+            60%{{transform:translateX(-4px);}}
+            80%{{transform:translateX(4px) scale(1.1);background:#E53935!important;color:white!important;}}
+        }}
         </style>
         <div class="cal-wrap">
         <div class="cal-header">
@@ -654,6 +665,13 @@ if menu == "📝 ยื่นคำขอลา":
         <script>
         const bookedInfo = {booked_info_js};
         const bookedDates = Object.keys(bookedInfo);
+        const quotaMap = {{
+            "ลาพักร้อน": {left_annual},
+            "ลากิจ": {left_personal},
+            "ลาป่วย": {left_sick},
+            "อื่นๆ": 999
+        }};
+        let currentLeaveType = "ลาพักร้อน";
         let sel = [];
         let yr = new Date().getFullYear();
         let mo = new Date().getMonth();
@@ -661,13 +679,36 @@ if menu == "📝 ยื่นคำขอลา":
         const DN = ["อา","จ","อ","พ","พฤ","ศ","ส"];
         function ds(y,m,d){{return y+"-"+String(m+1).padStart(2,"0")+"-"+String(d).padStart(2,"0");}}
         function changeMonth(d){{mo+=d;if(mo>11){{mo=0;yr++;}}if(mo<0){{mo=11;yr--;}}render();}}
+        function shake(el){{
+            el.style.animation="none";
+            el.offsetHeight;
+            el.style.animation="shake 0.4s ease";
+        }}
         function toggle(dateStr){{
             if(bookedDates.includes(dateStr)){{
                 alert("⚠️ วัน "+dateStr+" ท่านได้ยื่นลาไว้แล้ว (" + bookedInfo[dateStr] + ") ไม่สามารถเลือกได้");
                 return;
             }}
+            const quota = quotaMap[currentLeaveType] || 999;
             const i=sel.indexOf(dateStr);
-            if(i>=0) sel.splice(i,1); else sel.push(dateStr);
+            if(i>=0){{
+                sel.splice(i,1);
+            }}else{{
+                if(sel.length >= quota){{
+                    // หาวันที่ถูกคลิก แล้ว shake
+                    const allDays = document.querySelectorAll(".cal-day");
+                    allDays.forEach(d=>{{
+                        if(d.getAttribute("data-date")===dateStr) shake(d);
+                    }});
+                    const el = document.getElementById("cal-sum");
+                    el.innerHTML = "❌ ลาเกินสิทธิ์! ท่านมีสิทธิ์ลา <b>"+quota+" วัน</b> แต่เลือกครบแล้ว";
+                    el.className="cal-sum";
+                    el.style.background="#FFEBEE";
+                    el.style.borderLeftColor="#E53935";
+                    return;
+                }}
+                sel.push(dateStr);
+            }}
             sel.sort();
             render();
             updateSum();
@@ -715,6 +756,7 @@ if menu == "📝 ยื่นคำขอลา":
                     e.textContent=d;
                 }}
                 e.className=cls;
+                e.setAttribute("data-date", dateStr);
                 e.onclick=()=>toggle(dateStr);
                 g.appendChild(e);
             }}
@@ -751,8 +793,14 @@ if menu == "📝 ยื่นคำขอลา":
 
         with st.form("leave_form"):
             leave_type = st.selectbox("ประเภทการลา", ["ลาพักร้อน", "ลาป่วย", "ลากิจ", "อื่นๆ"])
+            quota_map = {{"ลาพักร้อน": left_annual, "ลากิจ": left_personal, "ลาป่วย": left_sick, "อื่นๆ": 999}}
+            remaining = quota_map.get(leave_type, 0)
+            st.caption(f"สิทธิ์คงเหลือ: {remaining} วัน")
             if selected_dates:
-                st.info(f"วันที่เลือก: {', '.join(selected_dates)} | รวม {total_days} วัน")
+                if total_days > remaining:
+                    st.error(f"❌ เลือก {total_days} วัน แต่มีสิทธิ์แค่ {remaining} วัน!")
+                else:
+                    st.info(f"วันที่เลือก: {', '.join(selected_dates)} | รวม {total_days} วัน")
             reason = st.text_area("เหตุผล")
             # ดึงชื่อหัวหน้าจากข้อมูลพนักงาน
             boss_id_val = str(emp.get("รหัสหัวหน้า", "")).strip().zfill(4)
