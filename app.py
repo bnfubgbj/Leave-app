@@ -609,9 +609,9 @@ if menu == "📝 ยื่นคำขอลา":
                         cur2 += td2(days=1)
                 except:
                     pass
-        booked_dates_js = str(list(booked_info.keys()))
-        booked_info_js = str(booked_info).replace("'", '"')
-        max_days_js = left_annual if True else 0  # will be overridden
+        import json
+        booked_dates_js = json.dumps(list(booked_info.keys()), ensure_ascii=False)
+        booked_info_js = json.dumps(booked_info, ensure_ascii=False)
 
         # คำนวณสิทธิ์คงเหลือสำหรับ JS
         _leave_type_temp = "ลาพักร้อน"  # default, will be updated after form
