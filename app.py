@@ -428,7 +428,6 @@ with st.sidebar:
 if is_admin:
     menu = st.sidebar.radio("เมนู", [
         "📋 ประวัติการลา",
-        "✅ อนุมัติใบลา",
         "👥 จัดการพนักงาน (Admin)",
     ])
 else:
