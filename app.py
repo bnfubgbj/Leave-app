@@ -369,20 +369,20 @@ if menu == "📝 ยื่นคำขอลา":
                 approver = st.selectbox("ผู้อนุมัติ", ["ผู้จัดการ", "HR"])
             submitted = st.form_submit_button("📤 ส่งคำขอลา")
             if submitted:
-                if not reason:
-                    st.error("กรุณาระบุเหตุผล")
-                elif days <= 0:
+                if days <= 0:
                     st.error("วันที่ไม่ถูกต้อง")
+                elif check_overlap(emp["รหัส"], start, end):
+                    overlap_list = check_overlap(emp["รหัส"], start, end)
+                    overlap_text = ", ".join([f"{l.get('วันเริ่ม','')} → {l.get('วันสิ้นสุด','')} ({l.get('สถานะ','')})" for l in overlap_list])
+                    st.error(f"❌ วันที่เลือกซ้ำกับวันลาที่มีอยู่แล้ว! ({overlap_text})")
                 elif leave_type == "ลาพักร้อน" and days > left_annual:
                     st.error(f"❌ วันลาพักร้อนไม่เพียงพอ! คงเหลือ {left_annual} วัน แต่ขอลา {days} วัน")
                 elif leave_type == "ลากิจ" and days > left_personal:
                     st.error(f"❌ วันลากิจไม่เพียงพอ! คงเหลือ {left_personal} วัน แต่ขอลา {days} วัน")
                 elif leave_type == "ลาป่วย" and days > left_sick:
                     st.error(f"❌ วันลาป่วยไม่เพียงพอ! คงเหลือ {left_sick} วัน แต่ขอลา {days} วัน")
-                elif check_overlap(emp["รหัส"], start, end):
-                    overlap_list = check_overlap(emp["รหัส"], start, end)
-                    overlap_text = ", ".join([f"{l.get('วันเริ่ม','')} → {l.get('วันสิ้นสุด','')} ({l.get('สถานะ','')})" for l in overlap_list])
-                    st.error(f"❌ วันที่เลือกซ้ำกับวันลาที่มีอยู่แล้ว! ({overlap_text})")
+                elif not reason:
+                    st.error("กรุณาระบุเหตุผล")
                 else:
                     leaves = load_leaves()
                     new_leave = {
