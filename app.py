@@ -65,6 +65,7 @@ def send_email_notification(leave, receiver=None):
 # ===============================
 # Google Sheets Connection
 # ===============================
+@st.cache_resource(ttl=30)
 def get_client():
     creds_dict = st.secrets["gcp_service_account"]
     creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
