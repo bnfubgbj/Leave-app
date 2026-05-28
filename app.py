@@ -309,6 +309,15 @@ if menu == "📝 ยื่นคำขอลา":
             st.success(f"👤 {emp['ชื่อ']} — {emp['ตำแหน่ง']} ({emp['แผนก']})")
 
             # ตารางสรุปวันลา
+            # เช็ควันซ้ำ realtime ก่อนกรอกฟอร์ม
+            from datetime import date as date_type
+            today_str = str(date_type.today())
+
+            # แสดง warning วันซ้ำทันทีที่เลือกวัน (ก่อนฟอร์ม)
+            _start_check = date_type.today()
+            _end_check = date_type.today()
+            _overlap_preview = check_overlap(emp["รหัส"], _start_check, _end_check)
+
             df_quota = pd.DataFrame([
                 {
                     "ประเภท": "🏖 ลาพักร้อน",
@@ -358,6 +367,12 @@ if menu == "📝 ยื่นคำขอลา":
                 end = st.date_input("วันที่สิ้นสุด", date.today())
             days = (end - start).days + 1
             st.info(f"จำนวนวันลา: {days} วัน")
+            # เช็ควันซ้ำ realtime
+            if days > 0:
+                overlap_now = check_overlap(emp["รหัส"], start, end)
+                if overlap_now:
+                    overlap_txt = ", ".join([f"{l.get('วันเริ่ม','')} → {l.get('วันสิ้นสุด','')} ({l.get('สถานะ','')})" for l in overlap_now])
+                    st.error(f"⚠️ วันที่เลือกซ้ำกับวันลาที่มีอยู่แล้ว! กรุณาเลือกวันใหม่\n({overlap_txt})")
             reason = st.text_area("เหตุผล")
             # ดึงชื่อหัวหน้าจากข้อมูลพนักงาน
             boss_id_val = str(emp.get("รหัสหัวหน้า", "")).strip().zfill(4)
