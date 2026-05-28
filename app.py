@@ -293,18 +293,22 @@ def do_logout():
     st.session_state.is_admin = False
 
 if not st.session_state.logged_in:
-    col_logo, col_title = st.columns([1, 5])
-    with col_logo:
-        try:
-            st.image("logo.jpg", width=80)
-        except:
-            pass
-    with col_title:
-        st.markdown("""
-        <div style="display:flex; flex-direction:column; justify-content:center; height:80px;">
-            <h1 style="margin:0; padding:0; line-height:1.1; font-size:2rem;">ระบบจัดการใบลา</h1>
-            <p style="margin:0; color:gray; font-size:13px;">VIRTUARCH CO.,LTD</p>
-        </div>""", unsafe_allow_html=True)
+    import base64
+    try:
+        with open("logo.jpg", "rb") as f:
+            logo_b64 = base64.b64encode(f.read()).decode()
+        st.markdown(f"""
+        <div style="display:flex; align-items:center; gap:20px; margin-bottom:10px;">
+            <img src="data:image/jpeg;base64,{logo_b64}" style="width:80px; object-fit:contain;">
+            <div>
+                <div style="font-size:2rem; font-weight:700; line-height:1.2;">ระบบจัดการใบลา</div>
+                <div style="color:gray; font-size:13px;">VIRTUARCH CO.,LTD</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    except:
+        st.markdown("<h1>🌿 ระบบจัดการใบลา</h1>", unsafe_allow_html=True)
+        st.markdown("<p style='color:gray;'>VIRTUARCH CO.,LTD</p>", unsafe_allow_html=True)
     st.divider()
     st.subheader("🔐 เข้าสู่ระบบ")
     with st.form("login_form"):
