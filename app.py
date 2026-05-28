@@ -662,6 +662,7 @@ if menu == "📝 ยื่นคำขอลา":
             <div class="leg"><div class="ld" style="background:#ECEFF1;border:1px solid #ccc"></div>ว่าง</div>
         </div>
         </div>
+        <div id="sel-out" style="display:none"></div>
         <script>
         const bookedInfo = {booked_info_js};
         const bookedDates = Object.keys(bookedInfo);
@@ -712,13 +713,19 @@ if menu == "📝 ยื่นคำขอลา":
             sel.sort();
             render();
             updateSum();
-            // sync to text input
-            const inp = window.parent.document.querySelector('input[data-testid="stTextInput"]');
-            if(inp){{
-                const nativeInput = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value');
-                nativeInput.set.call(inp, sel.join(","));
-                inp.dispatchEvent(new Event('input', {{bubbles:true}}));
-            }}
+            // sync to hidden div for Streamlit to read
+            document.getElementById("sel-out").textContent = sel.join(",");
+            // try sync to text input
+            try{{
+                const inputs = window.parent.document.querySelectorAll('input[type="text"]');
+                inputs.forEach(inp=>{{
+                    if(inp.placeholder && inp.placeholder.includes("2026")){{
+                        const nativeSet = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;
+                        nativeSet.call(inp, sel.join(","));
+                        inp.dispatchEvent(new Event('input',{{bubbles:true}}));
+                    }}
+                }});
+            }}catch(e){{}}
         }}
         function updateSum(){{
             const el = document.getElementById("cal-sum");
@@ -726,12 +733,12 @@ if menu == "📝 ยื่นคำขอลา":
                 el.textContent="ยังไม่ได้เลือกวัน";
                 el.className="cal-sum empty-sum";
             }}else{{
-                el.innerHTML="✅ เลือก <b>"+sel.length+" วัน</b>: "+sel.join(", ");
+                el.innerHTML="✅ เลือก <b>"+sel.length+" วัน</b>: "+sel.join(", ")+"<br><small style='color:#555'>📋 คัดลอกวันที่ด้านบนไปวางในช่องด้านล่าง</small>";
                 el.className="cal-sum";
             }}
         }}
         function render(){{
-            document.getElementById("cal-title").textContent = MN[mo]+" "+(yr+543);
+            document.getElementById("cal-title").textContent = MN[mo]+" พ.ศ."+(yr+543);
             const g=document.getElementById("cal-grid");
             g.innerHTML="";
             DN.forEach(d=>{{const e=document.createElement("div");e.className="cal-dn";e.textContent=d;g.appendChild(e);}});
