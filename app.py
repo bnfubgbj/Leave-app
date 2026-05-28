@@ -769,27 +769,31 @@ if menu == "📝 ยื่นคำขอลา":
         import streamlit.components.v1 as components
         cal_result = components.html(cal_html, height=380, scrolling=False)
 
-        # รับวันที่เลือกจาก session state
+        # รับวันที่เลือกจาก text input (พิมพ์เองหรือ sync จาก JS)
         if "cal_dates" not in st.session_state:
             st.session_state.cal_dates = ""
 
-        selected_input = st.text_input("วันที่เลือก (คั่นด้วย ,)", value=st.session_state.cal_dates,
-                                       placeholder="ระบบจะกรอกให้อัตโนมัติ หรือพิมพ์เอง เช่น 2026-06-01,2026-06-02",
-                                       help="คลิกวันในปฏิทินด้านบน หรือพิมพ์วันที่เองในรูปแบบ YYYY-MM-DD")
+        selected_input = st.text_input(
+            "📅 วันที่เลือก (คลิกปฏิทินด้านบน หรือพิมพ์เอง เช่น 2026-06-01,2026-06-03)",
+            value=st.session_state.cal_dates,
+            key="cal_input"
+        )
+        # อัปเดต session state
+        st.session_state.cal_dates = selected_input
 
-        selected_dates = [d.strip() for d in selected_input.split(",") if d.strip()]
+        selected_dates = [d.strip() for d in selected_input.split(",") if d.strip() and len(d.strip()) == 10]
         total_days = len(selected_dates)
-        has_overlap = any(d in booked_dates for d in selected_dates)
+        has_overlap = any(d in list(booked_info.keys()) for d in selected_dates)
 
         if has_overlap:
             st.error("⚠️ มีวันที่เลือกซ้ำกับวันลาที่มีอยู่แล้ว กรุณาตรวจสอบอีกครั้ง")
         elif total_days > 0:
-            st.success(f"✅ เลือก **{total_days} วัน**")
+            st.success(f"✅ เลือก **{total_days} วัน**: {', '.join(selected_dates)}")
 
         start = date.fromisoformat(selected_dates[0]) if selected_dates else date.today()
         end = date.fromisoformat(selected_dates[-1]) if selected_dates else date.today()
         days = total_days
-        date_ranges = [(date.fromisoformat(d), date.fromisoformat(d), 1) for d in selected_dates] if selected_dates else [(start, end, days)]
+        date_ranges = [(date.fromisoformat(d), date.fromisoformat(d), 1) for d in selected_dates] if selected_dates else []
 
         with st.form("leave_form"):
             leave_type = st.selectbox("ประเภทการลา", ["ลาพักร้อน", "ลาป่วย", "ลากิจ", "อื่นๆ"])
@@ -812,8 +816,8 @@ if menu == "📝 ยื่นคำขอลา":
                 approver = st.selectbox("ผู้อนุมัติ", ["ผู้จัดการ", "HR"])
             submitted = st.form_submit_button("📤 ส่งคำขอลา")
             if submitted:
-                if days <= 0:
-                    st.error("วันที่ไม่ถูกต้อง")
+                if days <= 0 or not selected_dates:
+                    st.error("⚠️ กรุณาเลือกวันที่ต้องการลาในปฏิทินก่อนครับ")
                 elif has_overlap:
                     st.error("❌ กรุณาแก้ไขช่วงวันที่ซ้ำกับวันลาที่มีอยู่แล้ว")
                 elif leave_type == "ลาพักร้อน" and days > left_annual:
