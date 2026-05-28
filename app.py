@@ -368,11 +368,13 @@ if menu == "📝 ยื่นคำขอลา":
             days = (end - start).days + 1
             st.info(f"จำนวนวันลา: {days} วัน")
             # เช็ควันซ้ำ realtime
+            _has_overlap = False
             if days > 0:
                 overlap_now = check_overlap(emp["รหัส"], start, end)
                 if overlap_now:
+                    _has_overlap = True
                     overlap_txt = ", ".join([f"{l.get('วันเริ่ม','')} → {l.get('วันสิ้นสุด','')} ({l.get('สถานะ','')})" for l in overlap_now])
-                    st.error(f"⚠️ วันที่เลือกซ้ำกับวันลาที่มีอยู่แล้ว! กรุณาเลือกวันใหม่\n({overlap_txt})")
+                    st.warning(f"⚠️ ท่านไม่สามารถเลือกวันดังกล่าวได้ เนื่องจากเป็นวันที่ท่านได้ยื่นลาไว้ก่อนหน้านี้แล้ว ({overlap_txt}) กรุณาเลือกวันใหม่")
             reason = st.text_area("เหตุผล")
             # ดึงชื่อหัวหน้าจากข้อมูลพนักงาน
             boss_id_val = str(emp.get("รหัสหัวหน้า", "")).strip().zfill(4)
@@ -387,9 +389,7 @@ if menu == "📝 ยื่นคำขอลา":
                 if days <= 0:
                     st.error("วันที่ไม่ถูกต้อง")
                 elif check_overlap(emp["รหัส"], start, end):
-                    overlap_list = check_overlap(emp["รหัส"], start, end)
-                    overlap_text = ", ".join([f"{l.get('วันเริ่ม','')} → {l.get('วันสิ้นสุด','')} ({l.get('สถานะ','')})" for l in overlap_list])
-                    st.error(f"❌ วันที่เลือกซ้ำกับวันลาที่มีอยู่แล้ว! ({overlap_text})")
+                    st.error("❌ กรุณาเลือกวันใหม่ เนื่องจากวันที่เลือกซ้ำกับวันลาที่มีอยู่แล้ว")
                 elif leave_type == "ลาพักร้อน" and days > left_annual:
                     st.error(f"❌ วันลาพักร้อนไม่เพียงพอ! คงเหลือ {left_annual} วัน แต่ขอลา {days} วัน")
                 elif leave_type == "ลากิจ" and days > left_personal:
