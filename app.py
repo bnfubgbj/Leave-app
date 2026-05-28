@@ -572,45 +572,10 @@ elif menu == "📋 ประวัติการลา":
 elif menu == "👥 จัดการพนักงาน (Admin)":
     st.header("👥 จัดการพนักงาน")
 
-    if "admin_logged_in" not in st.session_state:
-        st.session_state.admin_logged_in = False
-
-    if not st.session_state.admin_logged_in:
-        config = load_config()
-        tab1, tab2 = st.tabs(["🔒 เข้าสู่ระบบ", "🔑 ลืมรหัสผ่าน"])
-        with tab1:
-            with st.form("admin_login"):
-                password = st.text_input("รหัสผ่าน", type="password")
-                if st.form_submit_button("เข้าสู่ระบบ"):
-                    if password == config["admin_password"]:
-                        st.session_state.admin_logged_in = True
-                        st.rerun()
-                    else:
-                        st.error("❌ รหัสผ่านไม่ถูกต้อง")
-        with tab2:
-            st.info(f"❓ {config['secret_question']}")
-            with st.form("forgot_password"):
-                answer  = st.text_input("คำตอบ")
-                new_pw  = st.text_input("รหัสผ่านใหม่", type="password")
-                new_pw2 = st.text_input("ยืนยันรหัสผ่านใหม่", type="password")
-                if st.form_submit_button("รีเซ็ตรหัสผ่าน"):
-                    if answer.strip().lower() != config["secret_answer"].strip().lower():
-                        st.error("❌ คำตอบไม่ถูกต้อง")
-                    elif new_pw != new_pw2:
-                        st.error("❌ รหัสผ่านใหม่ไม่ตรงกัน")
-                    elif len(new_pw) < 6:
-                        st.error("❌ รหัสผ่านต้องมีอย่างน้อย 6 ตัว")
-                    else:
-                        config["admin_password"] = new_pw
-                        save_config(config)
-                        st.success("✅ รีเซ็ตรหัสผ่านเรียบร้อย!")
+    # ถ้า Login เป็น Admin แล้ว ไม่ต้องใส่รหัสผ่านซ้ำ
+    if not is_admin:
+        st.error("❌ คุณไม่มีสิทธิ์เข้าถึงหน้านี้")
         st.stop()
-
-    col_title, col_logout = st.columns([4, 1])
-    with col_logout:
-        if st.button("🚪 ออกจากระบบ"):
-            st.session_state.admin_logged_in = False
-            st.rerun()
 
     employees = load_employees()
 
