@@ -665,7 +665,7 @@ if menu == "📝 ยื่นคำขอลา":
         <div id="sel-out" style="display:none"></div>
         <script>
         var bookedInfo = '{booked_info_js}';
-        try{{ bookedInfo = JSON.parse(bookedInfo); }}catch(e){{ bookedInfo = {}; }}
+        try{{ bookedInfo = JSON.parse(bookedInfo); }}catch(e){{ bookedInfo = {{}}; }}
         const bookedDates = Object.keys(bookedInfo);
         const quotaMap = {{
             "ลาพักร้อน": {left_annual},
