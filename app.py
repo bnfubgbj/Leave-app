@@ -287,9 +287,7 @@ def export_summary_excel(employees):
         row_fill1 = PatternFill("solid", fgColor="D6E4F0")  # ฟ้าอ่อน
         row_fill2 = PatternFill("solid", fgColor="FFFFFF")  # ขาว
 
-        # สีแถวรวม
-        total_fill = PatternFill("solid", fgColor="2E75B6")  # น้ำเงิน
-        total_font = Font(bold=True, color="FFFFFF", size=11)
+        # ไม่มีแถวรวมแล้ว
 
         # Border
         thin = Side(style="thin", color="B8CCE4")
@@ -305,15 +303,11 @@ def export_summary_excel(employees):
 
         # จัดแถวข้อมูล
         for row in range(2, ws.max_row + 1):
-            is_total = row == ws.max_row
             for col in range(1, ws.max_column + 1):
                 cell = ws.cell(row=row, column=col)
                 cell.border = border
                 cell.alignment = Alignment(horizontal="center", vertical="center")
-                if is_total:
-                    cell.fill = total_fill
-                    cell.font = total_font
-                elif row % 2 == 0:
+                if row % 2 == 0:
                     cell.fill = row_fill1
                 else:
                     cell.fill = row_fill2
@@ -606,23 +600,50 @@ elif menu == "✅ อนุมัติใบลา":
 elif menu == "📋 ประวัติการลา":
     st.header("ประวัติการลา")
     leaves = load_leaves()
+    all_emps = load_employees()
+
     if not leaves:
         st.info("ยังไม่มีประวัติการลา")
     else:
         df = pd.DataFrame(leaves)
         df = df[["รหัส","ชื่อ","แผนก","ประเภท","วันเริ่ม","วันสิ้นสุด","จำนวนวัน","สถานะ","เหตุผล"]]
-        # Admin ดูได้ทุกคน พนักงานดูเฉพาะของตัวเอง
-        if not is_admin:
-            df = df[df["รหัส"] == current_user.get("รหัส","")]
-        else:
-            emp_filter = st.selectbox("กรองตามพนักงาน", ["ทั้งหมด"] + [f"{e['รหัส']} - {e['ชื่อ']}" for e in load_employees()])
+
+        if is_admin:
+            # Admin ดูได้ทุกคน
+            emp_filter = st.selectbox("กรองตามพนักงาน", ["ทั้งหมด"] + [f"{e['รหัส']} - {e['ชื่อ']}" for e in all_emps])
             if emp_filter != "ทั้งหมด":
                 filter_id = emp_filter.split(" - ")[0]
                 df = df[df["รหัส"] == filter_id]
+        else:
+            my_id = current_user.get("รหัส","")
+            # หาลูกน้องของคนนี้ (คนที่มี รหัสหัวหน้า == my_id)
+            subordinates = [e.get("รหัส","") for e in all_emps 
+                          if normalize_id(str(e.get("รหัสหัวหน้า",""))) == normalize_id(my_id)]
+
+            if subordinates:
+                # หัวหน้า ดูได้ทั้งตัวเองและลูกน้อง
+                allowed_ids = [my_id] + subordinates
+                df = df[df["รหัส"].apply(lambda x: normalize_id(str(x)) in [normalize_id(i) for i in allowed_ids])]
+                # filter เพิ่มเติม
+                view_options = ["ของฉัน"] + [f"{e['รหัส']} - {e['ชื่อ']}" for e in all_emps if e.get("รหัส","") in subordinates]
+                selected_view = st.selectbox("ดูประวัติของ", ["ทั้งหมด (ฉัน + ลูกน้อง)"] + view_options)
+                if selected_view == "ของฉัน":
+                    df = df[df["รหัส"].apply(lambda x: normalize_id(str(x)) == normalize_id(my_id))]
+                elif selected_view != "ทั้งหมด (ฉัน + ลูกน้อง)":
+                    sel_id = selected_view.split(" - ")[0]
+                    df = df[df["รหัส"].apply(lambda x: normalize_id(str(x)) == normalize_id(sel_id))]
+            else:
+                # พนักงานทั่วไป ดูเฉพาะของตัวเอง
+                df = df[df["รหัส"].apply(lambda x: normalize_id(str(x)) == normalize_id(my_id))]
+
         status_filter = st.selectbox("กรองตามสถานะ", ["ทั้งหมด","รออนุมัติ","อนุมัติแล้ว","ถูกปฏิเสธ"])
         if status_filter != "ทั้งหมด":
             df = df[df["สถานะ"] == status_filter]
-        st.dataframe(df, use_container_width=True, hide_index=True)
+
+        if df.empty:
+            st.info("ไม่พบรายการ")
+        else:
+            st.dataframe(df, use_container_width=True, hide_index=True)
 
 # ===============================
 elif menu == "👥 จัดการพนักงาน (Admin)":
