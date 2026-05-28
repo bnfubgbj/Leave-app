@@ -616,22 +616,26 @@ if menu == "📝 ยื่นคำขอลา":
         # HTML Calendar
         cal_html = f"""
         <style>
-        .cal-wrap {{ font-family: sans-serif; user-select: none; }}
-        .cal-header {{ display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }}
-        .cal-title {{ font-weight:600; font-size:15px; }}
-        .cal-nav {{ cursor:pointer; padding:4px 10px; border:1px solid #ddd; border-radius:4px; background:#f5f5f5; }}
-        .cal-grid {{ display:grid; grid-template-columns:repeat(7,1fr); gap:3px; }}
-        .cal-day-name {{ text-align:center; font-size:11px; color:#888; padding:3px 0; }}
-        .cal-day {{ text-align:center; padding:6px 2px; border-radius:6px; cursor:pointer; font-size:13px; min-height:30px; }}
-        .cal-day:hover:not(.booked):not(.empty) {{ background:#e3f2fd; }}
-        .cal-day.selected {{ background:#E53935; color:white; font-weight:600; }}
-        .cal-day.booked {{ background:#FFB300; color:white; cursor:not-allowed; }}
-        .cal-day.today {{ border:2px solid #1976D2; }}
-        .cal-day.empty {{ cursor:default; }}
-        .cal-summary {{ margin-top:10px; padding:8px 12px; background:#f5f5f5; border-radius:6px; font-size:13px; }}
-        .cal-legend {{ display:flex; gap:12px; margin-top:6px; font-size:11px; }}
-        .leg {{ display:flex; align-items:center; gap:4px; }}
-        .leg-dot {{ width:12px; height:12px; border-radius:3px; }}
+        .cal-wrap{{font-family:'Sarabun',sans-serif;max-width:340px;}}
+        .cal-header{{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}}
+        .cal-title{{font-weight:700;font-size:15px;}}
+        .cal-nav{{cursor:pointer;padding:4px 12px;border:1px solid #ddd;border-radius:6px;background:#f5f5f5;font-size:14px;}}
+        .cal-nav:hover{{background:#e0e0e0;}}
+        .cal-grid{{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;}}
+        .cal-dn{{text-align:center;font-size:11px;color:#999;padding:4px 0;font-weight:600;}}
+        .cal-day{{text-align:center;padding:4px 1px;border-radius:6px;cursor:pointer;font-size:12px;min-height:36px;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:all 0.15s;}}
+        .cal-day.empty{{cursor:default;background:transparent;}}
+        .cal-day.normal{{background:#ECEFF1;color:#37474F;}}
+        .cal-day.normal:hover{{background:#B0BEC5;}}
+        .cal-day.selected{{background:#43A047;color:white;font-weight:700;}}
+        .cal-day.booked{{background:#E53935;color:white;cursor:not-allowed;}}
+        .cal-day.today{{outline:2px solid #1976D2;outline-offset:-2px;}}
+        .cal-day .lbl{{font-size:7px;line-height:1;margin-top:1px;opacity:0.9;}}
+        .cal-sum{{margin-top:10px;padding:8px 12px;border-radius:6px;font-size:13px;background:#E8F5E9;border-left:4px solid #43A047;}}
+        .cal-sum.empty-sum{{background:#F5F5F5;border-left-color:#9E9E9E;color:#757575;}}
+        .legend{{display:flex;gap:10px;margin-top:8px;font-size:11px;flex-wrap:wrap;}}
+        .leg{{display:flex;align-items:center;gap:4px;}}
+        .ld{{width:14px;height:14px;border-radius:3px;}}
         </style>
         <div class="cal-wrap">
         <div class="cal-header">
@@ -640,106 +644,82 @@ if menu == "📝 ยื่นคำขอลา":
             <button class="cal-nav" onclick="changeMonth(1)">▶</button>
         </div>
         <div class="cal-grid" id="cal-grid"></div>
-        <div class="cal-summary" id="cal-summary">เลือก 0 วัน</div>
-        <div class="cal-legend">
-            <div class="leg"><div class="leg-dot" style="background:#E53935"></div>วันที่เลือก</div>
-            <div class="leg"><div class="leg-dot" style="background:#FFB300"></div>ลาไปแล้ว</div>
-            <div class="leg"><div class="leg-dot" style="border:2px solid #1976D2;"></div>วันนี้</div>
+        <div class="cal-sum empty-sum" id="cal-sum">ยังไม่ได้เลือกวัน</div>
+        <div class="legend">
+            <div class="leg"><div class="ld" style="background:#43A047"></div>เลือกลา</div>
+            <div class="leg"><div class="ld" style="background:#E53935"></div>ลาไปแล้ว</div>
+            <div class="leg"><div class="ld" style="background:#ECEFF1;border:1px solid #ccc"></div>ว่าง</div>
         </div>
         </div>
-        <input type="hidden" id="selected-dates-out" value="">
         <script>
-        const bookedDates = {booked_dates_js};
         const bookedInfo = {booked_info_js};
-        let selectedDates = [];
-        let currentYear = new Date().getFullYear();
-        let currentMonth = new Date().getMonth();
-        const monthNames = ["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน",
-                           "กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
-        const dayNames = ["อา","จ","อ","พ","พฤ","ศ","ส"];
-
-        function changeMonth(delta) {{
-            currentMonth += delta;
-            if (currentMonth > 11) {{ currentMonth = 0; currentYear++; }}
-            if (currentMonth < 0) {{ currentMonth = 11; currentYear--; }}
-            renderCalendar();
-        }}
-
-        function toDateStr(y, m, d) {{
-            return y + "-" + String(m+1).padStart(2,"0") + "-" + String(d).padStart(2,"0");
-        }}
-
-        function toggleDate(dateStr) {{
-            if (bookedDates.includes(dateStr)) {{
-                alert("⚠️ วันนี้ท่านได้ยื่นลาไว้แล้ว ไม่สามารถเลือกได้");
+        const bookedDates = Object.keys(bookedInfo);
+        let sel = [];
+        let yr = new Date().getFullYear();
+        let mo = new Date().getMonth();
+        const MN = ["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
+        const DN = ["อา","จ","อ","พ","พฤ","ศ","ส"];
+        function ds(y,m,d){{return y+"-"+String(m+1).padStart(2,"0")+"-"+String(d).padStart(2,"0");}}
+        function changeMonth(d){{mo+=d;if(mo>11){{mo=0;yr++;}}if(mo<0){{mo=11;yr--;}}render();}}
+        function toggle(dateStr){{
+            if(bookedDates.includes(dateStr)){{
+                alert("⚠️ วัน "+dateStr+" ท่านได้ยื่นลาไว้แล้ว (" + bookedInfo[dateStr] + ") ไม่สามารถเลือกได้");
                 return;
             }}
-            const idx = selectedDates.indexOf(dateStr);
-            if (idx >= 0) {{
-                selectedDates.splice(idx, 1);
-            }} else {{
-                selectedDates.push(dateStr);
-            }}
-            selectedDates.sort();
-            document.getElementById("selected-dates-out").value = selectedDates.join(",");
-            renderCalendar();
-            updateSummary();
-            // ส่งค่ากลับ Streamlit
-            window.parent.postMessage({{type:"streamlit:setComponentValue", value: selectedDates.join(",")}}, "*");
-        }}
-
-        function updateSummary() {{
-            const n = selectedDates.length;
-            const el = document.getElementById("cal-summary");
-            if (n === 0) {{
-                el.innerHTML = "เลือก 0 วัน";
-                el.style.background = "#f5f5f5";
-            }} else {{
-                el.innerHTML = "✅ เลือก <b>" + n + " วัน</b>: " + selectedDates.join(", ");
-                el.style.background = "#e8f5e9";
+            const i=sel.indexOf(dateStr);
+            if(i>=0) sel.splice(i,1); else sel.push(dateStr);
+            sel.sort();
+            render();
+            updateSum();
+            // sync to text input
+            const inp = window.parent.document.querySelector('input[data-testid="stTextInput"]');
+            if(inp){{
+                const nativeInput = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value');
+                nativeInput.set.call(inp, sel.join(","));
+                inp.dispatchEvent(new Event('input', {{bubbles:true}}));
             }}
         }}
-
-        function renderCalendar() {{
-            const title = document.getElementById("cal-title");
-            title.textContent = monthNames[currentMonth] + " " + (currentYear + 543);
-            const grid = document.getElementById("cal-grid");
-            grid.innerHTML = "";
-            dayNames.forEach(d => {{
-                const el = document.createElement("div");
-                el.className = "cal-day-name";
-                el.textContent = d;
-                grid.appendChild(el);
-            }});
-            const firstDay = new Date(currentYear, currentMonth, 1).getDay();
-            const daysInMonth = new Date(currentYear, currentMonth+1, 0).getDate();
-            const today = new Date();
-            const todayStr = toDateStr(today.getFullYear(), today.getMonth(), today.getDate());
-            for (let i = 0; i < firstDay; i++) {{
-                const el = document.createElement("div");
-                el.className = "cal-day empty";
-                grid.appendChild(el);
+        function updateSum(){{
+            const el = document.getElementById("cal-sum");
+            if(sel.length===0){{
+                el.textContent="ยังไม่ได้เลือกวัน";
+                el.className="cal-sum empty-sum";
+            }}else{{
+                el.innerHTML="✅ เลือก <b>"+sel.length+" วัน</b>: "+sel.join(", ");
+                el.className="cal-sum";
             }}
-            for (let d = 1; d <= daysInMonth; d++) {{
-                const dateStr = toDateStr(currentYear, currentMonth, d);
-                const el = document.createElement("div");
-                let cls = "cal-day";
-                if (dateStr === todayStr) cls += " today";
-                if (bookedDates.includes(dateStr)) {{
-                    cls += " booked";
-                    el.innerHTML = '<div style="font-size:12px;line-height:1.1;">' + d + '</div><div style="font-size:8px;line-height:1;">' + (bookedInfo[dateStr]||"") + '</div>';
-                }} else if (selectedDates.includes(dateStr)) {{
-                    cls += " selected";
-                    el.textContent = d;
-                }} else {{
-                    el.textContent = d;
+        }}
+        function render(){{
+            document.getElementById("cal-title").textContent = MN[mo]+" "+(yr+543);
+            const g=document.getElementById("cal-grid");
+            g.innerHTML="";
+            DN.forEach(d=>{{const e=document.createElement("div");e.className="cal-dn";e.textContent=d;g.appendChild(e);}});
+            const fd=new Date(yr,mo,1).getDay();
+            const dim=new Date(yr,mo+1,0).getDate();
+            const today=new Date();
+            const todayStr=ds(today.getFullYear(),today.getMonth(),today.getDate());
+            for(let i=0;i<fd;i++){{const e=document.createElement("div");e.className="cal-day empty";g.appendChild(e);}}
+            for(let d=1;d<=dim;d++){{
+                const dateStr=ds(yr,mo,d);
+                const e=document.createElement("div");
+                let cls="cal-day";
+                if(dateStr===todayStr) cls+=" today";
+                if(bookedDates.includes(dateStr)){{
+                    cls+=" booked";
+                    e.innerHTML='<div>'+d+'</div><div class="lbl">'+bookedInfo[dateStr]+'</div>';
+                }}else if(sel.includes(dateStr)){{
+                    cls+=" selected";
+                    e.textContent=d;
+                }}else{{
+                    cls+=" normal";
+                    e.textContent=d;
                 }}
-                el.className = cls;
-                el.onclick = () => toggleDate(dateStr);
-                grid.appendChild(el);
+                e.className=cls;
+                e.onclick=()=>toggle(dateStr);
+                g.appendChild(e);
             }}
         }}
-        renderCalendar();
+        render();
         </script>
         """
 
