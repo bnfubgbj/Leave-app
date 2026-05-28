@@ -575,58 +575,204 @@ if menu == "📝 ยื่นคำขอลา":
                 for pl in pending_leaves:
                     st.info(f"📅 {pl.get('ประเภท','')} | {pl.get('วันเริ่ม','')} → {pl.get('วันสิ้นสุด','')} | {pl.get('จำนวนวัน','')} วัน | เหตุผล: {pl.get('เหตุผล','')}")
     if emp:
+        # โหลดวันที่ลาไปแล้ว
+        existing_leaves = load_leaves()
+        booked_dates = []
+        for l in existing_leaves:
+            if (normalize_id(str(l.get("รหัส",""))) == normalize_id(emp["รหัส"])
+                    and l.get("สถานะ","") in ["รออนุมัติ","อนุมัติแล้ว"]):
+                try:
+                    from datetime import datetime as dt, timedelta
+                    s = dt.strptime(str(l.get("วันเริ่ม","")), "%Y-%m-%d").date()
+                    e = dt.strptime(str(l.get("วันสิ้นสุด","")), "%Y-%m-%d").date()
+                    cur = s
+                    while cur <= e:
+                        booked_dates.append(str(cur))
+                        cur += timedelta(days=1)
+                except:
+                    pass
+
+        # สร้าง dict วันที่ลา → ประเภท
+        booked_info = {}
+        for l in existing_leaves:
+            if (normalize_id(str(l.get("รหัส",""))) == normalize_id(emp["รหัส"])
+                    and l.get("สถานะ","") in ["รออนุมัติ","อนุมัติแล้ว"]):
+                try:
+                    from datetime import datetime as dt2, timedelta as td2
+                    s2 = dt2.strptime(str(l.get("วันเริ่ม","")), "%Y-%m-%d").date()
+                    e2 = dt2.strptime(str(l.get("วันสิ้นสุด","")), "%Y-%m-%d").date()
+                    short = {"ลาพักร้อน":"พักร้อน","ลาป่วย":"ป่วย","ลากิจ":"กิจ","อื่นๆ":"อื่นๆ"}
+                    label = short.get(l.get("ประเภท",""), l.get("ประเภท",""))
+                    cur2 = s2
+                    while cur2 <= e2:
+                        booked_info[str(cur2)] = label
+                        cur2 += td2(days=1)
+                except:
+                    pass
+        booked_dates_js = str(list(booked_info.keys()))
+        booked_info_js = str(booked_info).replace("'", '"')
+        max_days_js = left_annual if True else 0  # will be overridden
+
+        # HTML Calendar
+        cal_html = f"""
+        <style>
+        .cal-wrap {{ font-family: sans-serif; user-select: none; }}
+        .cal-header {{ display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }}
+        .cal-title {{ font-weight:600; font-size:15px; }}
+        .cal-nav {{ cursor:pointer; padding:4px 10px; border:1px solid #ddd; border-radius:4px; background:#f5f5f5; }}
+        .cal-grid {{ display:grid; grid-template-columns:repeat(7,1fr); gap:3px; }}
+        .cal-day-name {{ text-align:center; font-size:11px; color:#888; padding:3px 0; }}
+        .cal-day {{ text-align:center; padding:6px 2px; border-radius:6px; cursor:pointer; font-size:13px; min-height:30px; }}
+        .cal-day:hover:not(.booked):not(.empty) {{ background:#e3f2fd; }}
+        .cal-day.selected {{ background:#E53935; color:white; font-weight:600; }}
+        .cal-day.booked {{ background:#FFB300; color:white; cursor:not-allowed; }}
+        .cal-day.today {{ border:2px solid #1976D2; }}
+        .cal-day.empty {{ cursor:default; }}
+        .cal-summary {{ margin-top:10px; padding:8px 12px; background:#f5f5f5; border-radius:6px; font-size:13px; }}
+        .cal-legend {{ display:flex; gap:12px; margin-top:6px; font-size:11px; }}
+        .leg {{ display:flex; align-items:center; gap:4px; }}
+        .leg-dot {{ width:12px; height:12px; border-radius:3px; }}
+        </style>
+        <div class="cal-wrap">
+        <div class="cal-header">
+            <button class="cal-nav" onclick="changeMonth(-1)">◀</button>
+            <span class="cal-title" id="cal-title"></span>
+            <button class="cal-nav" onclick="changeMonth(1)">▶</button>
+        </div>
+        <div class="cal-grid" id="cal-grid"></div>
+        <div class="cal-summary" id="cal-summary">เลือก 0 วัน</div>
+        <div class="cal-legend">
+            <div class="leg"><div class="leg-dot" style="background:#E53935"></div>วันที่เลือก</div>
+            <div class="leg"><div class="leg-dot" style="background:#FFB300"></div>ลาไปแล้ว</div>
+            <div class="leg"><div class="leg-dot" style="border:2px solid #1976D2;"></div>วันนี้</div>
+        </div>
+        </div>
+        <input type="hidden" id="selected-dates-out" value="">
+        <script>
+        const bookedDates = {booked_dates_js};
+        const bookedInfo = {booked_info_js};
+        let selectedDates = [];
+        let currentYear = new Date().getFullYear();
+        let currentMonth = new Date().getMonth();
+        const monthNames = ["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน",
+                           "กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
+        const dayNames = ["อา","จ","อ","พ","พฤ","ศ","ส"];
+
+        function changeMonth(delta) {{
+            currentMonth += delta;
+            if (currentMonth > 11) {{ currentMonth = 0; currentYear++; }}
+            if (currentMonth < 0) {{ currentMonth = 11; currentYear--; }}
+            renderCalendar();
+        }}
+
+        function toDateStr(y, m, d) {{
+            return y + "-" + String(m+1).padStart(2,"0") + "-" + String(d).padStart(2,"0");
+        }}
+
+        function toggleDate(dateStr) {{
+            if (bookedDates.includes(dateStr)) {{
+                alert("⚠️ วันนี้ท่านได้ยื่นลาไว้แล้ว ไม่สามารถเลือกได้");
+                return;
+            }}
+            const idx = selectedDates.indexOf(dateStr);
+            if (idx >= 0) {{
+                selectedDates.splice(idx, 1);
+            }} else {{
+                selectedDates.push(dateStr);
+            }}
+            selectedDates.sort();
+            document.getElementById("selected-dates-out").value = selectedDates.join(",");
+            renderCalendar();
+            updateSummary();
+            // ส่งค่ากลับ Streamlit
+            window.parent.postMessage({{type:"streamlit:setComponentValue", value: selectedDates.join(",")}}, "*");
+        }}
+
+        function updateSummary() {{
+            const n = selectedDates.length;
+            const el = document.getElementById("cal-summary");
+            if (n === 0) {{
+                el.innerHTML = "เลือก 0 วัน";
+                el.style.background = "#f5f5f5";
+            }} else {{
+                el.innerHTML = "✅ เลือก <b>" + n + " วัน</b>: " + selectedDates.join(", ");
+                el.style.background = "#e8f5e9";
+            }}
+        }}
+
+        function renderCalendar() {{
+            const title = document.getElementById("cal-title");
+            title.textContent = monthNames[currentMonth] + " " + (currentYear + 543);
+            const grid = document.getElementById("cal-grid");
+            grid.innerHTML = "";
+            dayNames.forEach(d => {{
+                const el = document.createElement("div");
+                el.className = "cal-day-name";
+                el.textContent = d;
+                grid.appendChild(el);
+            }});
+            const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+            const daysInMonth = new Date(currentYear, currentMonth+1, 0).getDate();
+            const today = new Date();
+            const todayStr = toDateStr(today.getFullYear(), today.getMonth(), today.getDate());
+            for (let i = 0; i < firstDay; i++) {{
+                const el = document.createElement("div");
+                el.className = "cal-day empty";
+                grid.appendChild(el);
+            }}
+            for (let d = 1; d <= daysInMonth; d++) {{
+                const dateStr = toDateStr(currentYear, currentMonth, d);
+                const el = document.createElement("div");
+                let cls = "cal-day";
+                if (dateStr === todayStr) cls += " today";
+                if (bookedDates.includes(dateStr)) {{
+                    cls += " booked";
+                    el.innerHTML = '<div style="font-size:12px;line-height:1.1;">' + d + '</div><div style="font-size:8px;line-height:1;">' + (bookedInfo[dateStr]||"") + '</div>';
+                }} else if (selectedDates.includes(dateStr)) {{
+                    cls += " selected";
+                    el.textContent = d;
+                }} else {{
+                    el.textContent = d;
+                }}
+                el.className = cls;
+                el.onclick = () => toggleDate(dateStr);
+                grid.appendChild(el);
+            }}
+        }}
+        renderCalendar();
+        </script>
+        """
+
+        # แสดงปฏิทิน
+        import streamlit.components.v1 as components
+        cal_result = components.html(cal_html, height=380, scrolling=False)
+
+        # รับวันที่เลือกจาก session state
+        if "cal_dates" not in st.session_state:
+            st.session_state.cal_dates = ""
+
+        selected_input = st.text_input("วันที่เลือก (คั่นด้วย ,)", value=st.session_state.cal_dates,
+                                       placeholder="ระบบจะกรอกให้อัตโนมัติ หรือพิมพ์เอง เช่น 2026-06-01,2026-06-02",
+                                       help="คลิกวันในปฏิทินด้านบน หรือพิมพ์วันที่เองในรูปแบบ YYYY-MM-DD")
+
+        selected_dates = [d.strip() for d in selected_input.split(",") if d.strip()]
+        total_days = len(selected_dates)
+        has_overlap = any(d in booked_dates for d in selected_dates)
+
+        if has_overlap:
+            st.error("⚠️ มีวันที่เลือกซ้ำกับวันลาที่มีอยู่แล้ว กรุณาตรวจสอบอีกครั้ง")
+        elif total_days > 0:
+            st.success(f"✅ เลือก **{total_days} วัน**")
+
+        start = date.fromisoformat(selected_dates[0]) if selected_dates else date.today()
+        end = date.fromisoformat(selected_dates[-1]) if selected_dates else date.today()
+        days = total_days
+        date_ranges = [(date.fromisoformat(d), date.fromisoformat(d), 1) for d in selected_dates] if selected_dates else [(start, end, days)]
+
         with st.form("leave_form"):
             leave_type = st.selectbox("ประเภทการลา", ["ลาพักร้อน", "ลาป่วย", "ลากิจ", "อื่นๆ"])
-
-            # ช่วงที่ 1
-            st.markdown("**ช่วงที่ 1**")
-            col1, col2 = st.columns(2)
-            with col1:
-                start1 = st.date_input("วันที่เริ่ม", date.today(), key="s1")
-            with col2:
-                end1 = st.date_input("วันที่สิ้นสุด", date.today(), key="e1")
-            days1 = max((end1 - start1).days + 1, 0)
-
-            # ช่วงที่ 2 (ไม่บังคับ)
-            st.markdown("**ช่วงที่ 2** (ถ้ามี)")
-            use_range2 = st.checkbox("เพิ่มช่วงที่ 2")
-            days2 = 0
-            start2 = end2 = None
-            if use_range2:
-                col3, col4 = st.columns(2)
-                with col3:
-                    start2 = st.date_input("วันที่เริ่ม", date.today(), key="s2")
-                with col4:
-                    end2 = st.date_input("วันที่สิ้นสุด", date.today(), key="e2")
-                days2 = max((end2 - start2).days + 1, 0)
-
-            total_days = days1 + days2
-            days = total_days
-            start = start1
-            end = end2 if use_range2 and end2 else end1
-
-            if total_days > 0:
-                if use_range2:
-                    st.info(f"รวมจำนวนวันลา: **{total_days} วัน** (ช่วง 1: {days1} วัน + ช่วง 2: {days2} วัน)")
-                else:
-                    st.info(f"จำนวนวันลา: **{total_days} วัน**")
-
-            # เช็ควันซ้ำ
-            has_overlap = False
-            if days1 > 0:
-                ov1 = check_overlap(emp["รหัส"], start1, end1)
-                if ov1:
-                    has_overlap = True
-                    st.warning(f"⚠️ ช่วงที่ 1 ซ้ำกับวันลาที่มีอยู่แล้ว!")
-            if use_range2 and days2 > 0 and start2 and end2:
-                ov2 = check_overlap(emp["รหัส"], start2, end2)
-                if ov2:
-                    has_overlap = True
-                    st.warning(f"⚠️ ช่วงที่ 2 ซ้ำกับวันลาที่มีอยู่แล้ว!")
-
-            date_ranges = [(start1, end1, days1)]
-            if use_range2 and days2 > 0 and start2 and end2:
-                date_ranges.append((start2, end2, days2))
+            if selected_dates:
+                st.info(f"วันที่เลือก: {', '.join(selected_dates)} | รวม {total_days} วัน")
             reason = st.text_area("เหตุผล")
             # ดึงชื่อหัวหน้าจากข้อมูลพนักงาน
             boss_id_val = str(emp.get("รหัสหัวหน้า", "")).strip().zfill(4)
