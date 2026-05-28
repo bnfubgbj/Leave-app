@@ -793,7 +793,7 @@ if menu == "📝 ยื่นคำขอลา":
 
         with st.form("leave_form"):
             leave_type = st.selectbox("ประเภทการลา", ["ลาพักร้อน", "ลาป่วย", "ลากิจ", "อื่นๆ"])
-            quota_map = {{"ลาพักร้อน": left_annual, "ลากิจ": left_personal, "ลาป่วย": left_sick, "อื่นๆ": 999}}
+            quota_map = {"ลาพักร้อน": left_annual, "ลากิจ": left_personal, "ลาป่วย": left_sick, "อื่นๆ": 999}
             remaining = quota_map.get(leave_type, 0)
             st.caption(f"สิทธิ์คงเหลือ: {remaining} วัน")
             if selected_dates:
