@@ -296,25 +296,47 @@ if not st.session_state.logged_in:
     st.title("🌿 ระบบจัดการใบลา")
     st.subheader("🔐 เข้าสู่ระบบ")
     with st.form("login_form"):
-        login_id = st.text_input("รหัสพนักงาน เช่น 0001")
+        # โหลดรายชื่อพนักงาน
+        all_emps = load_employees()
+        emp_options = ["-- เลือกชื่อพนักงาน --"] + [f"{e.get('รหัส','')} - {e.get('ชื่อ','')}" for e in all_emps]
+        selected_emp = st.selectbox("เลือกชื่อพนักงาน", emp_options)
         login_pw = st.text_input("รหัสผ่าน", type="password")
         if st.form_submit_button("เข้าสู่ระบบ"):
             config = load_config()
-            # เช็ค Admin
-            if login_id == "admin" and login_pw == config.get("admin_password", "admin1234"):
+            if selected_emp == "-- เลือกชื่อพนักงาน --":
+                st.error("❌ กรุณาเลือกชื่อพนักงาน")
+            else:
+                login_id = selected_emp.split(" - ")[0].strip()
+                # เช็ค Admin
+                if login_id == "admin" and login_pw == config.get("admin_password", "admin1234"):
+                    st.session_state.logged_in = True
+                    st.session_state.login_user = None
+                    st.session_state.is_admin = True
+                    st.rerun()
+                else:
+                    emp = get_employee(login_id)
+                    if emp and str(emp.get("รหัสผ่าน","")).strip() == str(login_pw).strip():
+                        st.session_state.logged_in = True
+                        st.session_state.login_user = emp
+                        st.session_state.is_admin = False
+                        st.rerun()
+                    else:
+                        st.error("❌ รหัสผ่านไม่ถูกต้อง")
+
+    # Admin login แยก
+    st.divider()
+    st.caption("สำหรับ Admin")
+    with st.form("admin_login_form"):
+        admin_pw = st.text_input("รหัสผ่าน Admin", type="password")
+        if st.form_submit_button("เข้าสู่ระบบ Admin"):
+            config = load_config()
+            if admin_pw == config.get("admin_password", "admin1234"):
                 st.session_state.logged_in = True
                 st.session_state.login_user = None
                 st.session_state.is_admin = True
                 st.rerun()
             else:
-                emp = get_employee(login_id.strip())
-                if emp and str(emp.get("รหัสผ่าน","")).strip() == str(login_pw).strip():
-                    st.session_state.logged_in = True
-                    st.session_state.login_user = emp
-                    st.session_state.is_admin = False
-                    st.rerun()
-                else:
-                    st.error("❌ รหัสพนักงานหรือรหัสผ่านไม่ถูกต้อง")
+                st.error("❌ รหัสผ่าน Admin ไม่ถูกต้อง")
     st.stop()
 
 # Show user info and logout
