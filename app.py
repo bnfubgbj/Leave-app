@@ -581,9 +581,11 @@ if menu == "📝 ยื่นคำขอลา":
                 """)
 
             with st.expander(f"📅 วันที่ลาไปแล้ว ({total_booked} วัน)"):
-                st.markdown(
-                    "<div style='padding:4px 0'>" + "".join(html_parts) + "</div>",
-                    unsafe_allow_html=True
+                import streamlit.components.v1 as _components
+                _components.html(
+                    "<div style='padding:4px 0;font-family:sans-serif;'>" + "".join(html_parts) + "</div>",
+                    height=min(total_booked * 20 + 80, 250),
+                    scrolling=False
                 )
 
         # เลือกวันที่ลา — ใช้ date_input แบบช่วงวัน
