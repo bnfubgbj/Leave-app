@@ -506,198 +506,69 @@ if menu == "📝 ยื่นคำขอลา":
                 st.info(f"📅 {pl.get('ประเภท','')} | {pl.get('วันเริ่ม','')} → {pl.get('วันสิ้นสุด','')} | {pl.get('จำนวนวัน','')} วัน | เหตุผล: {pl.get('เหตุผล','')}")
 
     if emp:
+        from datetime import datetime as dt2, timedelta as td2
+
+        # โหลดวันที่ลาไปแล้ว
         existing_leaves = load_leaves()
+        booked_dates_set = set()
         booked_info = {}
         for l in existing_leaves:
             if (normalize_id(str(l.get("รหัส",""))) == normalize_id(emp["รหัส"])
                     and l.get("สถานะ","") in ["รออนุมัติ","อนุมัติแล้ว"]):
                 try:
-                    from datetime import datetime as dt2, timedelta as td2
                     s2 = dt2.strptime(str(l.get("วันเริ่ม","")), "%Y-%m-%d").date()
                     e2 = dt2.strptime(str(l.get("วันสิ้นสุด","")), "%Y-%m-%d").date()
                     short = {"ลาพักร้อน":"พักร้อน","ลาป่วย":"ป่วย","ลากิจ":"กิจ","อื่นๆ":"อื่นๆ"}
                     label = short.get(l.get("ประเภท",""), l.get("ประเภท",""))
                     cur2 = s2
                     while cur2 <= e2:
+                        booked_dates_set.add(cur2)
                         booked_info[str(cur2)] = label
                         cur2 += td2(days=1)
                 except:
                     pass
 
-        booked_info_js = json.dumps(booked_info, ensure_ascii=False)
+        # แสดงวันที่ลาไปแล้ว
+        if booked_info:
+            booked_list = sorted(booked_info.keys())
+            st.info("📅 วันที่ลาไปแล้ว: " + ", ".join(
+                f"{d}({booked_info[d]})" for d in booked_list
+            ))
 
-        # ===== HTML Calendar =====
-        # ใช้ .format() แทน f-string เพื่อหลีกเลี่ยง {} ชนกับ JS
-        cal_html_template = """
-<style>
-.cal-wrap{font-family:'Sarabun',sans-serif;max-width:340px;}
-.cal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
-.cal-title{font-weight:700;font-size:15px;}
-.cal-nav{cursor:pointer;padding:4px 12px;border:1px solid #ddd;border-radius:6px;background:#f5f5f5;font-size:14px;}
-.cal-nav:hover{background:#e0e0e0;}
-.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;}
-.cal-dn{text-align:center;font-size:11px;color:#999;padding:4px 0;font-weight:600;}
-.cal-day{text-align:center;padding:4px 1px;border-radius:6px;cursor:pointer;font-size:12px;min-height:36px;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:all 0.15s;}
-.cal-day.empty{cursor:default;background:transparent;}
-.cal-day.normal{background:#ECEFF1;color:#37474F;}
-.cal-day.normal:hover{background:#B0BEC5;}
-.cal-day.selected{background:#43A047;color:white;font-weight:700;}
-.cal-day.booked{background:#E53935;color:white;cursor:not-allowed;}
-.cal-day.today{outline:2px solid #1976D2;outline-offset:-2px;}
-.cal-day .lbl{font-size:7px;line-height:1;margin-top:1px;opacity:0.9;}
-.cal-sum{margin-top:10px;padding:8px 12px;border-radius:6px;font-size:13px;background:#E8F5E9;border-left:4px solid #43A047;}
-.cal-sum.empty-sum{background:#F5F5F5;border-left-color:#9E9E9E;color:#757575;}
-.legend{display:flex;gap:10px;margin-top:8px;font-size:11px;flex-wrap:wrap;}
-.leg{display:flex;align-items:center;gap:4px;}
-.ld{width:14px;height:14px;border-radius:3px;}
-@keyframes shake{
-    0%,100%{transform:translateX(0);}
-    20%{transform:translateX(-4px) scale(1.1);background:#E53935!important;color:white!important;}
-    40%{transform:translateX(4px);}
-    60%{transform:translateX(-4px);}
-    80%{transform:translateX(4px) scale(1.1);background:#E53935!important;color:white!important;}
-}
-</style>
-<div class="cal-wrap">
-<div class="cal-header">
-    <button class="cal-nav" onclick="changeMonth(-1)">&#9664;</button>
-    <span class="cal-title" id="cal-title"></span>
-    <button class="cal-nav" onclick="changeMonth(1)">&#9654;</button>
-</div>
-<div class="cal-grid" id="cal-grid"></div>
-<div class="cal-sum empty-sum" id="cal-sum">ยังไม่ได้เลือกวัน</div>
-<div class="legend">
-    <div class="leg"><div class="ld" style="background:#43A047"></div>เลือกลา</div>
-    <div class="leg"><div class="ld" style="background:#E53935"></div>ลาไปแล้ว</div>
-    <div class="leg"><div class="ld" style="background:#ECEFF1;border:1px solid #ccc"></div>ว่าง</div>
-</div>
-</div>
-<div id="sel-out" style="display:none"></div>
-<script>
-var bookedInfo = BOOKED_INFO_PLACEHOLDER;
-const bookedDates = Object.keys(bookedInfo);
-const quotaMap = {
-    "ลาพักร้อน": LEFT_ANNUAL_PLACEHOLDER,
-    "ลากิจ": LEFT_PERSONAL_PLACEHOLDER,
-    "ลาป่วย": LEFT_SICK_PLACEHOLDER,
-    "อื่นๆ": 999
-};
-let currentLeaveType = "ลาพักร้อน";
-let sel = [];
-let yr = new Date().getFullYear();
-let mo = new Date().getMonth();
-const MN = ["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
-const DN = ["อา","จ","อ","พ","พฤ","ศ","ส"];
-function ds(y,m,d){return y+"-"+String(m+1).padStart(2,"0")+"-"+String(d).padStart(2,"0");}
-function changeMonth(d){mo+=d;if(mo>11){mo=0;yr++;}if(mo<0){mo=11;yr--;}render();}
-function shake(el){el.style.animation="none";el.offsetHeight;el.style.animation="shake 0.4s ease";}
-function toggle(dateStr){
-    if(bookedDates.includes(dateStr)){
-        alert("⚠️ วัน "+dateStr+" ท่านได้ยื่นลาไว้แล้ว ("+bookedInfo[dateStr]+") ไม่สามารถเลือกได้");
-        return;
-    }
-    const quota = quotaMap[currentLeaveType] || 999;
-    const i=sel.indexOf(dateStr);
-    if(i>=0){
-        sel.splice(i,1);
-    }else{
-        if(sel.length >= quota){
-            const allDays = document.querySelectorAll(".cal-day");
-            allDays.forEach(d=>{if(d.getAttribute("data-date")===dateStr) shake(d);});
-            const el = document.getElementById("cal-sum");
-            el.innerHTML = "❌ ลาเกินสิทธิ์! ท่านมีสิทธิ์ลา <b>"+quota+" วัน</b> แต่เลือกครบแล้ว";
-            el.className="cal-sum";
-            el.style.background="#FFEBEE";
-            el.style.borderLeftColor="#E53935";
-            return;
-        }
-        sel.push(dateStr);
-    }
-    sel.sort();
-    render();
-    updateSum();
-    document.getElementById("sel-out").textContent = sel.join(",");
-}
-function updateSum(){
-    const el = document.getElementById("cal-sum");
-    if(sel.length===0){
-        el.textContent="ยังไม่ได้เลือกวัน";
-        el.className="cal-sum empty-sum";
-    }else{
-        el.innerHTML="✅ เลือก <b>"+sel.length+" วัน</b>: "+sel.join(", ")+"<br><small style='color:#555'>📋 คัดลอกวันที่ด้านบนไปวางในช่องด้านล่าง</small>";
-        el.className="cal-sum";
-    }
-}
-function render(){
-    document.getElementById("cal-title").textContent = MN[mo]+" พ.ศ."+(yr+543);
-    const g=document.getElementById("cal-grid");
-    g.innerHTML="";
-    DN.forEach(d=>{const e=document.createElement("div");e.className="cal-dn";e.textContent=d;g.appendChild(e);});
-    const fd=new Date(yr,mo,1).getDay();
-    const dim=new Date(yr,mo+1,0).getDate();
-    const today=new Date();
-    const todayStr=ds(today.getFullYear(),today.getMonth(),today.getDate());
-    for(let i=0;i<fd;i++){const e=document.createElement("div");e.className="cal-day empty";g.appendChild(e);}
-    for(let d=1;d<=dim;d++){
-        const dateStr=ds(yr,mo,d);
-        const e=document.createElement("div");
-        let cls="cal-day";
-        if(dateStr===todayStr) cls+=" today";
-        if(bookedDates.includes(dateStr)){
-            cls+=" booked";
-            e.innerHTML='<div>'+d+'</div><div class="lbl">'+bookedInfo[dateStr]+'</div>';
-        }else if(sel.includes(dateStr)){
-            cls+=" selected";
-            e.textContent=d;
-        }else{
-            cls+=" normal";
-            e.textContent=d;
-        }
-        e.className=cls;
-        e.setAttribute("data-date", dateStr);
-        e.onclick=()=>toggle(dateStr);
-        g.appendChild(e);
-    }
-}
-window.onload = function() { render(); };
-render();
-</script>
-"""
-        # แทนค่า Python variables เข้าไปใน template
-        cal_html = cal_html_template.replace(
-            "BOOKED_INFO_PLACEHOLDER", booked_info_js
-        ).replace(
-            "LEFT_ANNUAL_PLACEHOLDER", str(left_annual)
-        ).replace(
-            "LEFT_PERSONAL_PLACEHOLDER", str(left_personal)
-        ).replace(
-            "LEFT_SICK_PLACEHOLDER", str(left_sick)
-        )
+        # เลือกวันที่ลา — ใช้ date_input แบบช่วงวัน
+        st.markdown("**📅 เลือกวันที่ต้องการลา**")
+        col_s, col_e = st.columns(2)
+        with col_s:
+            leave_start = st.date_input("วันเริ่มต้น", value=date.today(), key="leave_start")
+        with col_e:
+            leave_end = st.date_input("วันสิ้นสุด", value=date.today(), key="leave_end")
 
-        import streamlit.components.v1 as components
-        components.html(cal_html, height=380, scrolling=False)
+        # สร้าง list ของวันที่เลือกทั้งหมด (ไม่รวมวันที่ลาไปแล้ว)
+        selected_dates = []
+        overlap_dates = []
+        if leave_start <= leave_end:
+            cur = leave_start
+            while cur <= leave_end:
+                if cur in booked_dates_set:
+                    overlap_dates.append(str(cur))
+                else:
+                    selected_dates.append(str(cur))
+                cur += td2(days=1)
 
-        if "cal_dates" not in st.session_state:
-            st.session_state.cal_dates = ""
-
-        selected_input = st.text_input(
-            "📅 วันที่เลือก (คลิกปฏิทินด้านบน หรือพิมพ์เอง เช่น 2026-06-01,2026-06-03)",
-            value=st.session_state.cal_dates,
-            key="cal_input"
-        )
-        st.session_state.cal_dates = selected_input
-
-        selected_dates = [d.strip() for d in selected_input.split(",") if d.strip() and len(d.strip()) == 10]
         total_days = len(selected_dates)
-        has_overlap = any(d in list(booked_info.keys()) for d in selected_dates)
+        has_overlap = len(overlap_dates) > 0
 
-        if has_overlap:
-            st.error("⚠️ มีวันที่เลือกซ้ำกับวันลาที่มีอยู่แล้ว กรุณาตรวจสอบอีกครั้ง")
+        if leave_start > leave_end:
+            st.error("❌ วันเริ่มต้นต้องไม่มากกว่าวันสิ้นสุด")
+        elif has_overlap:
+            st.error(f"⚠️ มีวันที่ซ้ำกับวันลาที่มีอยู่แล้ว: {', '.join(overlap_dates)}")
+            if selected_dates:
+                st.warning(f"วันที่ใช้ได้: {', '.join(selected_dates)} | รวม {total_days} วัน")
         elif total_days > 0:
             st.success(f"✅ เลือก **{total_days} วัน**: {', '.join(selected_dates)}")
 
-        start = date.fromisoformat(selected_dates[0]) if selected_dates else date.today()
-        end   = date.fromisoformat(selected_dates[-1]) if selected_dates else date.today()
+        start = leave_start
+        end   = leave_end
         days  = total_days
 
         with st.form("leave_form"):
