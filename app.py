@@ -624,8 +624,20 @@ if menu == "📝 ยื่นคำขอลา":
         end   = leave_end
         days  = total_days
 
+        # selectbox นอก form เพื่อให้ rerun ทันทีเมื่อเปลี่ยนประเภท
+        quota_map = {
+            "ลาพักร้อน": left_annual,
+            "ลากิจ":     left_personal,
+            "ลาป่วย":    left_sick,
+            "อื่นๆ":     999
+        }
+        leave_type = st.selectbox("ประเภทการลา", ["ลาพักร้อน", "ลาป่วย", "ลากิจ", "อื่นๆ"], key="leave_type_sel")
+        remaining  = quota_map.get(leave_type, 0)
+        rem_icon   = "🟢" if remaining > 3 else ("🟡" if remaining > 0 else "🔴")
+        st.caption(f"{rem_icon} สิทธิ์คงเหลือ: **{remaining} วัน**")
+
         with st.form("leave_form"):
-            st.markdown(f"**ประเภทการลา:** {leave_type} &nbsp;|&nbsp; **สิทธิ์คงเหลือ:** {remaining} วัน")
+            st.markdown(f"**สรุป:** {leave_type} | สิทธิ์คงเหลือ {remaining} วัน")
             reason = st.text_area("เหตุผล")
             boss_id_val = str(emp.get("รหัสหัวหน้า", "")).strip().zfill(4)
             boss_emp = get_employee(boss_id_val) if boss_id_val and boss_id_val != "0000" else None
