@@ -534,15 +534,57 @@ if menu == "📝 ยื่นคำขอลา":
                 except:
                     pass
 
-        # แสดงวันที่ลาไปแล้ว (ตารางเล็ก)
+        # แสดงวันที่ลาไปแล้ว แบบ Badge จัดกลุ่มตามเดือน
         if booked_info:
             booked_list = sorted(booked_info.keys())
-            df_booked = pd.DataFrame([
-                {"วันที่": d, "ประเภท": booked_info[d]}
-                for d in booked_list
-            ])
-            st.markdown("**📅 วันที่ลาไปแล้ว**")
-            st.dataframe(df_booked, use_container_width=True, hide_index=True, height=min(len(booked_list)*35+38, 200))
+            total_booked = len(booked_list)
+
+            color_map = {
+                "พักร้อน": "#1565C0",
+                "ป่วย":    "#B71C1C",
+                "กิจ":     "#1B5E20",
+                "อื่นๆ":   "#4A148C",
+            }
+            th_month = ["","มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม",
+                        "มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม",
+                        "พฤศจิกายน","ธันวาคม"]
+
+            # จัดกลุ่มตามเดือน
+            from collections import defaultdict
+            grouped = defaultdict(list)
+            for d in booked_list:
+                ym = d[:7]  # "2026-06"
+                grouped[ym].append(d)
+
+            # สร้าง HTML
+            html_parts = []
+            for ym in sorted(grouped.keys()):
+                y, m = ym.split("-")
+                month_label = f"{th_month[int(m)]} พ.ศ.{int(y)+543}"
+                badges = ""
+                for d in grouped[ym]:
+                    day_num = d.split("-")[2]
+                    label = booked_info[d]
+                    color = color_map.get(label, "#546E7A")
+                    badges += f"""<span style="
+                        background:{color};color:white;
+                        padding:3px 10px;border-radius:20px;
+                        font-size:12px;margin:3px 4px 3px 0;
+                        display:inline-block;font-family:sans-serif;">
+                        {day_num} {th_month[int(m)][:3]}. &nbsp;{label}
+                    </span>"""
+                html_parts.append(f"""
+                    <div style="margin-bottom:8px;">
+                        <div style="font-size:12px;color:#888;margin-bottom:4px;">{month_label}</div>
+                        <div>{badges}</div>
+                    </div>
+                """)
+
+            with st.expander(f"📅 วันที่ลาไปแล้ว ({total_booked} วัน)"):
+                st.markdown(
+                    "<div style='padding:4px 0'>" + "".join(html_parts) + "</div>",
+                    unsafe_allow_html=True
+                )
 
         # เลือกวันที่ลา — ใช้ date_input แบบช่วงวัน
         st.markdown("**📅 เลือกวันที่ต้องการลา**")
