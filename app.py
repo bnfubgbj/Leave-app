@@ -24,14 +24,11 @@ def send_email_notification(leave, receiver=None):
         password = cfg["password"].replace(" ", "")
         if not receiver:
             receiver = cfg["receiver"]
-        # รองรับหลาย email คั่นด้วย comma
         receivers = [r.strip() for r in str(receiver).split(",") if r.strip()]
         if not receivers:
             receivers = [cfg["receiver"]]
 
-        type_map = {"ลาพักร้อน":"ลาพักร้อน","ลาป่วย":"ลาป่วย","ลากิจ":"ลากิจ","อื่นๆ":"อื่นๆ"}
         subject = f"[ระบบใบลา] {leave['ชื่อ']} ขอ{leave['ประเภท']} {leave['จำนวนวัน']} วัน รอการอนุมัติ"
-
         body = f"""
         <h2>📋 มีคำขอลาใหม่รอการอนุมัติ</h2>
         <table border="1" cellpadding="8" style="border-collapse:collapse;">
@@ -46,13 +43,10 @@ def send_email_notification(leave, receiver=None):
         <br>
         <p>กรุณาเข้าระบบเพื่ออนุมัติหรือปฏิเสธคำขอ</p>
         """
-
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
         msg["From"]    = sender
-        # To header will be set after receivers list is built
         msg.attach(MIMEText(body, "html", "utf-8"))
-
         msg["To"] = ", ".join(receivers)
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
             server.login(sender, password)
@@ -93,8 +87,6 @@ def load_employees(include_inactive=False):
 
 def save_employee(emp):
     ws = get_sheet("employees")
-    employees = load_employees()
-    # check if exists
     records = ws.get_all_values()
     if len(records) == 0:
         ws.append_row(["รหัส","ชื่อ","ตำแหน่ง","แผนก","วันเริ่มงาน","ลาพักร้อน","ลากิจ","ลาป่วย"])
@@ -161,7 +153,7 @@ def update_leave_status(leave_id, status, note):
     records = ws.get_all_values()
     for i, row in enumerate(records):
         if i == 0:
-            continue  # skip header
+            continue
         if str(row[0]).strip() == str(leave_id).strip():
             ws.update_cell(i + 1, 12, status)
             ws.update_cell(i + 1, 13, note)
@@ -171,14 +163,11 @@ def deactivate_employee(emp_id):
     ws = get_sheet("employees")
     records = ws.get_all_values()
     headers = records[0] if records else []
-    # หาคอลัมน์ สถานะ
     try:
         status_col = headers.index("สถานะ") + 1
     except:
-        # ถ้าไม่มีคอลัมน์ สถานะ ให้เพิ่มที่ท้าย
         status_col = len(headers) + 1
         ws.update_cell(1, status_col, "สถานะ")
-
     for i, row in enumerate(records):
         if i == 0:
             continue
@@ -226,7 +215,6 @@ def get_pending_days(emp_id, leave_type=None):
     return sum(int(l.get("จำนวนวัน",0)) for l in result)
 
 def check_overlap(emp_id, start, end):
-    """เช็คว่าวันที่ขอลาซ้อนกับวันลาที่รออนุมัติหรืออนุมัติแล้วไหม"""
     from datetime import datetime
     leaves = load_leaves()
     pending = [l for l in leaves if str(l.get("รหัส","")) == str(emp_id)
@@ -292,56 +280,36 @@ def export_summary_excel(employees):
             "ลาป่วยคงเหลือ": int(e["ลาป่วย"]) - used_sick,
         })
     df = pd.DataFrame(rows)
-    # แปลง column ตัวเลขให้เป็น int
     num_cols = ["สิทธิ์ลาพักร้อน","ลาพักร้อนที่ใช้","ลาพักร้อนคงเหลือ",
                 "สิทธิ์ลากิจ","ลากิจที่ใช้","ลากิจคงเหลือ",
                 "สิทธิ์ลาป่วย","ลาป่วยที่ใช้","ลาป่วยคงเหลือ"]
     for c in num_cols:
         if c in df.columns:
             df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0).astype(int)
-    df_final = df.copy()
     from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
-
     output = BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        df_final.to_excel(writer, index=False, sheet_name="สรุปการลา")
+        df.to_excel(writer, index=False, sheet_name="สรุปการลา")
         ws = writer.sheets["สรุปการลา"]
-
-        # สี Header
-        header_fill = PatternFill("solid", fgColor="1F4E79")  # น้ำเงินเข้ม
+        header_fill = PatternFill("solid", fgColor="1F4E79")
         header_font = Font(bold=True, color="FFFFFF", size=11)
-
-        # สีแถวพนักงานสลับกัน
-        row_fill1 = PatternFill("solid", fgColor="D6E4F0")  # ฟ้าอ่อน
-        row_fill2 = PatternFill("solid", fgColor="FFFFFF")  # ขาว
-
-        # ไม่มีแถวรวมแล้ว
-
-        # Border
+        row_fill1 = PatternFill("solid", fgColor="D6E4F0")
+        row_fill2 = PatternFill("solid", fgColor="FFFFFF")
         thin = Side(style="thin", color="B8CCE4")
         border = Border(left=thin, right=thin, top=thin, bottom=thin)
-
-        # จัด Header
         for col in range(1, ws.max_column + 1):
             cell = ws.cell(row=1, column=col)
             cell.fill = header_fill
             cell.font = header_font
             cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
             cell.border = border
-
-        # จัดแถวข้อมูล
         for row in range(2, ws.max_row + 1):
             for col in range(1, ws.max_column + 1):
                 cell = ws.cell(row=row, column=col)
                 cell.border = border
                 cell.alignment = Alignment(horizontal="center", vertical="center")
-                if row % 2 == 0:
-                    cell.fill = row_fill1
-                else:
-                    cell.fill = row_fill2
-
-        # ปรับความกว้าง column อัตโนมัติ
+                cell.fill = row_fill1 if row % 2 == 0 else row_fill2
         for col in range(1, ws.max_column + 1):
             max_len = 0
             for row in range(1, ws.max_row + 1):
@@ -349,15 +317,9 @@ def export_summary_excel(employees):
                 if val:
                     max_len = max(max_len, len(str(val)))
             ws.column_dimensions[get_column_letter(col)].width = min(max_len + 4, 25)
-
-        # ความสูงแถว header
         ws.row_dimensions[1].height = 35
-
     return output.getvalue()
 
-# ===============================
-# MENU
-# ===============================
 # ===============================
 # Login System
 # ===============================
@@ -390,7 +352,6 @@ if not st.session_state.logged_in:
         st.markdown("<p style='color:gray;'>VIRTUARCH CO.,LTD</p>", unsafe_allow_html=True)
     st.divider()
     st.subheader("🔐 เข้าสู่ระบบ")
-    # โหลดรายชื่อพนักงานก่อนฟอร์ม
     all_emps = load_employees()
     if not all_emps:
         st.warning("⚠️ กำลังโหลดข้อมูล กรุณารอสักครู่แล้ว refresh หน้าใหม่")
@@ -406,7 +367,6 @@ if not st.session_state.logged_in:
                 st.error("❌ กรุณาเลือกชื่อพนักงาน")
             else:
                 login_id = selected_emp.split(" - ")[0].strip()
-                # เช็ค Admin
                 if login_id == "admin" and login_pw == config.get("admin_password", "admin1234"):
                     st.session_state.logged_in = True
                     st.session_state.login_user = None
@@ -422,7 +382,6 @@ if not st.session_state.logged_in:
                     else:
                         st.error("❌ รหัสผ่านไม่ถูกต้อง")
 
-    # Admin login แยก
     st.divider()
     st.caption("สำหรับ Admin")
     with st.form("admin_login_form"):
@@ -438,7 +397,9 @@ if not st.session_state.logged_in:
                 st.error("❌ รหัสผ่าน Admin ไม่ถูกต้อง")
     st.stop()
 
-# Show user info and logout
+# ===============================
+# Post-login
+# ===============================
 current_user = st.session_state.login_user
 is_admin = st.session_state.is_admin
 
@@ -457,7 +418,6 @@ with st.sidebar:
         do_logout()
         st.rerun()
 
-# เมนูตาม role
 if is_admin:
     menu = st.sidebar.radio("เมนู", [
         "📋 ประวัติการลา",
@@ -468,7 +428,6 @@ else:
     all_leaves = load_leaves()
     all_emps_sidebar = load_employees()
 
-    # นับรายการที่รออนุมัติจากคนนี้
     subordinates_sidebar = [e.get("รหัส","") for e in all_emps_sidebar
                            if normalize_id(str(e.get("รหัสหัวหน้า",""))) == normalize_id(my_id)]
 
@@ -480,18 +439,15 @@ else:
         is_named = my_id in approver_field or approver_name in approver_field
         return is_sub or is_named
 
-    # รายการที่รอให้ฉันอนุมัติ
     waiting_for_me = [l for l in all_leaves
                      if l.get("สถานะ","") == "รออนุมัติ"
                      and normalize_id(str(l.get("รหัส",""))) != normalize_id(my_id)
                      and is_for_me(l)]
 
-    # รายการของฉันที่รออนุมัติ
     my_pending = [l for l in all_leaves
                  if l.get("สถานะ","") == "รออนุมัติ"
                  and normalize_id(str(l.get("รหัส",""))) == normalize_id(my_id)]
 
-    # แสดงสรุปใน sidebar
     if waiting_for_me:
         st.sidebar.error(f"📋 {len(waiting_for_me)} รายการรอการอนุมัติจากคุณ")
     if my_pending:
@@ -507,92 +463,50 @@ else:
         menu = "✅ อนุมัติใบลา"
 
 # ===============================
+# หน้า: ยื่นคำขอลา
+# ===============================
 if menu == "📝 ยื่นคำขอลา":
     st.header("ยื่นคำขอลา")
-    # ใช้ข้อมูลจาก login โดยตรง
     emp = current_user
     emp_id = emp.get("รหัส","") if emp else ""
     if emp:
-            carry         = int(emp.get("วันสะสม", 0) or 0)
-            total_annual  = int(emp.get("ลาพักร้อน", 0)) + carry
-            # แยก อนุมัติแล้ว vs รออนุมัติ
-            approved_annual   = get_approved_days(emp["รหัส"], "ลาพักร้อน")
-            pending_annual    = get_pending_days(emp["รหัส"], "ลาพักร้อน")
-            approved_personal = get_approved_days(emp["รหัส"], "ลากิจ")
-            pending_personal  = get_pending_days(emp["รหัส"], "ลากิจ")
-            approved_sick     = get_approved_days(emp["รหัส"], "ลาป่วย")
-            pending_sick      = get_pending_days(emp["รหัส"], "ลาป่วย")
-            left_annual   = total_annual - approved_annual - pending_annual
-            left_personal = int(emp.get("ลากิจ", 0)) - approved_personal - pending_personal
-            left_sick     = int(emp.get("ลาป่วย", 0)) - approved_sick - pending_sick
+        carry         = int(emp.get("วันสะสม", 0) or 0)
+        total_annual  = int(emp.get("ลาพักร้อน", 0)) + carry
+        approved_annual   = get_approved_days(emp["รหัส"], "ลาพักร้อน")
+        pending_annual    = get_pending_days(emp["รหัส"], "ลาพักร้อน")
+        approved_personal = get_approved_days(emp["รหัส"], "ลากิจ")
+        pending_personal  = get_pending_days(emp["รหัส"], "ลากิจ")
+        approved_sick     = get_approved_days(emp["รหัส"], "ลาป่วย")
+        pending_sick      = get_pending_days(emp["รหัส"], "ลาป่วย")
+        left_annual   = total_annual - approved_annual - pending_annual
+        left_personal = int(emp.get("ลากิจ", 0)) - approved_personal - pending_personal
+        left_sick     = int(emp.get("ลาป่วย", 0)) - approved_sick - pending_sick
 
-            st.success(f"👤 {emp['ชื่อ']} — {emp['ตำแหน่ง']} ({emp['แผนก']})")
+        st.success(f"👤 {emp['ชื่อ']} — {emp['ตำแหน่ง']} ({emp['แผนก']})")
 
-            # ตารางสรุปวันลา
-            # เช็ควันซ้ำ realtime ก่อนกรอกฟอร์ม
-            from datetime import date as date_type
-            today_str = str(date_type.today())
+        df_quota = pd.DataFrame([
+            {"ประเภท": "🏖 ลาพักร้อน", "สิทธิ์รวม": total_annual,
+             "อนุมัติแล้ว": approved_annual, "รออนุมัติ": pending_annual, "คงเหลือ": left_annual},
+            {"ประเภท": "📋 ลากิจ", "สิทธิ์รวม": int(emp.get("ลากิจ", 0)),
+             "อนุมัติแล้ว": approved_personal, "รออนุมัติ": pending_personal, "คงเหลือ": left_personal},
+            {"ประเภท": "🏥 ลาป่วย", "สิทธิ์รวม": int(emp.get("ลาป่วย", 0)),
+             "อนุมัติแล้ว": approved_sick, "รออนุมัติ": pending_sick, "คงเหลือ": left_sick},
+        ])
+        st.dataframe(df_quota, use_container_width=True, hide_index=True)
+        if left_annual <= 0 or left_personal <= 0 or left_sick <= 0:
+            st.error("⚠️ วันลาบางประเภทหมดแล้ว!")
 
-            # แสดง warning วันซ้ำทันทีที่เลือกวัน (ก่อนฟอร์ม)
-            _start_check = date_type.today()
-            _end_check = date_type.today()
-            _overlap_preview = check_overlap(emp["รหัส"], _start_check, _end_check)
+        all_leaves_emp = load_leaves()
+        pending_leaves = [l for l in all_leaves_emp
+                        if normalize_id(str(l.get("รหัส",""))) == normalize_id(emp_id)
+                        and l.get("สถานะ","") == "รออนุมัติ"]
+        if pending_leaves:
+            st.warning("⏳ รายการที่รออนุมัติ")
+            for pl in pending_leaves:
+                st.info(f"📅 {pl.get('ประเภท','')} | {pl.get('วันเริ่ม','')} → {pl.get('วันสิ้นสุด','')} | {pl.get('จำนวนวัน','')} วัน | เหตุผล: {pl.get('เหตุผล','')}")
 
-            df_quota = pd.DataFrame([
-                {
-                    "ประเภท": "🏖 ลาพักร้อน",
-                    "สิทธิ์รวม": total_annual,
-                    "อนุมัติแล้ว": approved_annual,
-                    "รออนุมัติ": pending_annual,
-                    "คงเหลือ": left_annual,
-                },
-                {
-                    "ประเภท": "📋 ลากิจ",
-                    "สิทธิ์รวม": int(emp.get("ลากิจ", 0)),
-                    "อนุมัติแล้ว": approved_personal,
-                    "รออนุมัติ": pending_personal,
-                    "คงเหลือ": left_personal,
-                },
-                {
-                    "ประเภท": "🏥 ลาป่วย",
-                    "สิทธิ์รวม": int(emp.get("ลาป่วย", 0)),
-                    "อนุมัติแล้ว": approved_sick,
-                    "รออนุมัติ": pending_sick,
-                    "คงเหลือ": left_sick,
-                },
-            ])
-            st.dataframe(df_quota, use_container_width=True, hide_index=True)
-            if left_annual <= 0 or left_personal <= 0 or left_sick <= 0:
-                st.error("⚠️ วันลาบางประเภทหมดแล้ว!")
-
-            # แสดงรายการที่รออนุมัติ
-            all_leaves = load_leaves()
-            pending_leaves = [l for l in all_leaves 
-                            if normalize_id(str(l.get("รหัส",""))) == normalize_id(emp_id)
-                            and l.get("สถานะ","") == "รออนุมัติ"]
-            if pending_leaves:
-                st.warning("⏳ รายการที่รออนุมัติ")
-                for pl in pending_leaves:
-                    st.info(f"📅 {pl.get('ประเภท','')} | {pl.get('วันเริ่ม','')} → {pl.get('วันสิ้นสุด','')} | {pl.get('จำนวนวัน','')} วัน | เหตุผล: {pl.get('เหตุผล','')}")
     if emp:
-        # โหลดวันที่ลาไปแล้ว
         existing_leaves = load_leaves()
-        booked_dates = []
-        for l in existing_leaves:
-            if (normalize_id(str(l.get("รหัส",""))) == normalize_id(emp["รหัส"])
-                    and l.get("สถานะ","") in ["รออนุมัติ","อนุมัติแล้ว"]):
-                try:
-                    from datetime import datetime as dt, timedelta
-                    s = dt.strptime(str(l.get("วันเริ่ม","")), "%Y-%m-%d").date()
-                    e = dt.strptime(str(l.get("วันสิ้นสุด","")), "%Y-%m-%d").date()
-                    cur = s
-                    while cur <= e:
-                        booked_dates.append(str(cur))
-                        cur += timedelta(days=1)
-                except:
-                    pass
-
-        # สร้าง dict วันที่ลา → ประเภท
         booked_info = {}
         for l in existing_leaves:
             if (normalize_id(str(l.get("รหัส",""))) == normalize_id(emp["รหัส"])
@@ -609,176 +523,160 @@ if menu == "📝 ยื่นคำขอลา":
                         cur2 += td2(days=1)
                 except:
                     pass
-        import json
+
         booked_info_js = json.dumps(booked_info, ensure_ascii=False)
-        booked_dates_js = json.dumps(list(booked_info.keys()), ensure_ascii=False)
 
-        # คำนวณสิทธิ์คงเหลือสำหรับ JS
-        _leave_type_temp = "ลาพักร้อน"  # default, will be updated after form
-        max_days_for_cal = left_annual  # default พักร้อน
-
-        # HTML Calendar
-        cal_html = f"""
-        <style>
-        .cal-wrap{{font-family:'Sarabun',sans-serif;max-width:340px;}}
-        .cal-header{{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}}
-        .cal-title{{font-weight:700;font-size:15px;}}
-        .cal-nav{{cursor:pointer;padding:4px 12px;border:1px solid #ddd;border-radius:6px;background:#f5f5f5;font-size:14px;}}
-        .cal-nav:hover{{background:#e0e0e0;}}
-        .cal-grid{{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;}}
-        .cal-dn{{text-align:center;font-size:11px;color:#999;padding:4px 0;font-weight:600;}}
-        .cal-day{{text-align:center;padding:4px 1px;border-radius:6px;cursor:pointer;font-size:12px;min-height:36px;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:all 0.15s;}}
-        .cal-day.empty{{cursor:default;background:transparent;}}
-        .cal-day.normal{{background:#ECEFF1;color:#37474F;}}
-        .cal-day.normal:hover{{background:#B0BEC5;}}
-        .cal-day.selected{{background:#43A047;color:white;font-weight:700;}}
-        .cal-day.booked{{background:#E53935;color:white;cursor:not-allowed;}}
-        .cal-day.today{{outline:2px solid #1976D2;outline-offset:-2px;}}
-        .cal-day .lbl{{font-size:7px;line-height:1;margin-top:1px;opacity:0.9;}}
-        .cal-sum{{margin-top:10px;padding:8px 12px;border-radius:6px;font-size:13px;background:#E8F5E9;border-left:4px solid #43A047;}}
-        .cal-sum.empty-sum{{background:#F5F5F5;border-left-color:#9E9E9E;color:#757575;}}
-        .legend{{display:flex;gap:10px;margin-top:8px;font-size:11px;flex-wrap:wrap;}}
-        .leg{{display:flex;align-items:center;gap:4px;}}
-        .ld{{width:14px;height:14px;border-radius:3px;}}
-        @keyframes shake{{
-            0%,100%{{transform:translateX(0);}}
-            20%{{transform:translateX(-4px) scale(1.1);background:#E53935!important;color:white!important;}}
-            40%{{transform:translateX(4px);}}
-            60%{{transform:translateX(-4px);}}
-            80%{{transform:translateX(4px) scale(1.1);background:#E53935!important;color:white!important;}}
-        }}
-        </style>
-        <div class="cal-wrap">
-        <div class="cal-header">
-            <button class="cal-nav" onclick="changeMonth(-1)">◀</button>
-            <span class="cal-title" id="cal-title"></span>
-            <button class="cal-nav" onclick="changeMonth(1)">▶</button>
-        </div>
-        <div class="cal-grid" id="cal-grid"></div>
-        <div class="cal-sum empty-sum" id="cal-sum">ยังไม่ได้เลือกวัน</div>
-        <div class="legend">
-            <div class="leg"><div class="ld" style="background:#43A047"></div>เลือกลา</div>
-            <div class="leg"><div class="ld" style="background:#E53935"></div>ลาไปแล้ว</div>
-            <div class="leg"><div class="ld" style="background:#ECEFF1;border:1px solid #ccc"></div>ว่าง</div>
-        </div>
-        </div>
-        <div id="sel-out" style="display:none"></div>
-        <script>
-        var bookedInfo = '{booked_info_js}';
-        try{{ bookedInfo = JSON.parse(bookedInfo); }}catch(e){{ bookedInfo = {{}}; }}
-        const bookedDates = Object.keys(bookedInfo);
-        const quotaMap = {{
-            "ลาพักร้อน": {left_annual},
-            "ลากิจ": {left_personal},
-            "ลาป่วย": {left_sick},
-            "อื่นๆ": 999
-        }};
-        let currentLeaveType = "ลาพักร้อน";
-        let sel = [];
-        let yr = new Date().getFullYear();
-        let mo = new Date().getMonth();
-        const MN = ["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
-        const DN = ["อา","จ","อ","พ","พฤ","ศ","ส"];
-        function ds(y,m,d){{return y+"-"+String(m+1).padStart(2,"0")+"-"+String(d).padStart(2,"0");}}
-        function changeMonth(d){{mo+=d;if(mo>11){{mo=0;yr++;}}if(mo<0){{mo=11;yr--;}}render();}}
-        function shake(el){{
-            el.style.animation="none";
-            el.offsetHeight;
-            el.style.animation="shake 0.4s ease";
-        }}
-        function toggle(dateStr){{
-            if(bookedDates.includes(dateStr)){{
-                alert("⚠️ วัน "+dateStr+" ท่านได้ยื่นลาไว้แล้ว (" + bookedInfo[dateStr] + ") ไม่สามารถเลือกได้");
-                return;
-            }}
-            const quota = quotaMap[currentLeaveType] || 999;
-            const i=sel.indexOf(dateStr);
-            if(i>=0){{
-                sel.splice(i,1);
-            }}else{{
-                if(sel.length >= quota){{
-                    // หาวันที่ถูกคลิก แล้ว shake
-                    const allDays = document.querySelectorAll(".cal-day");
-                    allDays.forEach(d=>{{
-                        if(d.getAttribute("data-date")===dateStr) shake(d);
-                    }});
-                    const el = document.getElementById("cal-sum");
-                    el.innerHTML = "❌ ลาเกินสิทธิ์! ท่านมีสิทธิ์ลา <b>"+quota+" วัน</b> แต่เลือกครบแล้ว";
-                    el.className="cal-sum";
-                    el.style.background="#FFEBEE";
-                    el.style.borderLeftColor="#E53935";
-                    return;
-                }}
-                sel.push(dateStr);
-            }}
-            sel.sort();
-            render();
-            updateSum();
-            // sync to hidden div for Streamlit to read
-            document.getElementById("sel-out").textContent = sel.join(",");
-            // try sync to text input
-            try{{
-                const inputs = window.parent.document.querySelectorAll('input[type="text"]');
-                inputs.forEach(inp=>{{
-                    if(inp.placeholder && inp.placeholder.includes("2026")){{
-                        const nativeSet = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;
-                        nativeSet.call(inp, sel.join(","));
-                        inp.dispatchEvent(new Event('input',{{bubbles:true}}));
-                    }}
-                }});
-            }}catch(e){{}}
-        }}
-        function updateSum(){{
+        # ===== HTML Calendar =====
+        # ใช้ .format() แทน f-string เพื่อหลีกเลี่ยง {} ชนกับ JS
+        cal_html_template = """
+<style>
+.cal-wrap{font-family:'Sarabun',sans-serif;max-width:340px;}
+.cal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+.cal-title{font-weight:700;font-size:15px;}
+.cal-nav{cursor:pointer;padding:4px 12px;border:1px solid #ddd;border-radius:6px;background:#f5f5f5;font-size:14px;}
+.cal-nav:hover{background:#e0e0e0;}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;}
+.cal-dn{text-align:center;font-size:11px;color:#999;padding:4px 0;font-weight:600;}
+.cal-day{text-align:center;padding:4px 1px;border-radius:6px;cursor:pointer;font-size:12px;min-height:36px;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:all 0.15s;}
+.cal-day.empty{cursor:default;background:transparent;}
+.cal-day.normal{background:#ECEFF1;color:#37474F;}
+.cal-day.normal:hover{background:#B0BEC5;}
+.cal-day.selected{background:#43A047;color:white;font-weight:700;}
+.cal-day.booked{background:#E53935;color:white;cursor:not-allowed;}
+.cal-day.today{outline:2px solid #1976D2;outline-offset:-2px;}
+.cal-day .lbl{font-size:7px;line-height:1;margin-top:1px;opacity:0.9;}
+.cal-sum{margin-top:10px;padding:8px 12px;border-radius:6px;font-size:13px;background:#E8F5E9;border-left:4px solid #43A047;}
+.cal-sum.empty-sum{background:#F5F5F5;border-left-color:#9E9E9E;color:#757575;}
+.legend{display:flex;gap:10px;margin-top:8px;font-size:11px;flex-wrap:wrap;}
+.leg{display:flex;align-items:center;gap:4px;}
+.ld{width:14px;height:14px;border-radius:3px;}
+@keyframes shake{
+    0%,100%{transform:translateX(0);}
+    20%{transform:translateX(-4px) scale(1.1);background:#E53935!important;color:white!important;}
+    40%{transform:translateX(4px);}
+    60%{transform:translateX(-4px);}
+    80%{transform:translateX(4px) scale(1.1);background:#E53935!important;color:white!important;}
+}
+</style>
+<div class="cal-wrap">
+<div class="cal-header">
+    <button class="cal-nav" onclick="changeMonth(-1)">&#9664;</button>
+    <span class="cal-title" id="cal-title"></span>
+    <button class="cal-nav" onclick="changeMonth(1)">&#9654;</button>
+</div>
+<div class="cal-grid" id="cal-grid"></div>
+<div class="cal-sum empty-sum" id="cal-sum">ยังไม่ได้เลือกวัน</div>
+<div class="legend">
+    <div class="leg"><div class="ld" style="background:#43A047"></div>เลือกลา</div>
+    <div class="leg"><div class="ld" style="background:#E53935"></div>ลาไปแล้ว</div>
+    <div class="leg"><div class="ld" style="background:#ECEFF1;border:1px solid #ccc"></div>ว่าง</div>
+</div>
+</div>
+<div id="sel-out" style="display:none"></div>
+<script>
+var bookedInfo = BOOKED_INFO_PLACEHOLDER;
+const bookedDates = Object.keys(bookedInfo);
+const quotaMap = {
+    "ลาพักร้อน": LEFT_ANNUAL_PLACEHOLDER,
+    "ลากิจ": LEFT_PERSONAL_PLACEHOLDER,
+    "ลาป่วย": LEFT_SICK_PLACEHOLDER,
+    "อื่นๆ": 999
+};
+let currentLeaveType = "ลาพักร้อน";
+let sel = [];
+let yr = new Date().getFullYear();
+let mo = new Date().getMonth();
+const MN = ["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
+const DN = ["อา","จ","อ","พ","พฤ","ศ","ส"];
+function ds(y,m,d){return y+"-"+String(m+1).padStart(2,"0")+"-"+String(d).padStart(2,"0");}
+function changeMonth(d){mo+=d;if(mo>11){mo=0;yr++;}if(mo<0){mo=11;yr--;}render();}
+function shake(el){el.style.animation="none";el.offsetHeight;el.style.animation="shake 0.4s ease";}
+function toggle(dateStr){
+    if(bookedDates.includes(dateStr)){
+        alert("⚠️ วัน "+dateStr+" ท่านได้ยื่นลาไว้แล้ว ("+bookedInfo[dateStr]+") ไม่สามารถเลือกได้");
+        return;
+    }
+    const quota = quotaMap[currentLeaveType] || 999;
+    const i=sel.indexOf(dateStr);
+    if(i>=0){
+        sel.splice(i,1);
+    }else{
+        if(sel.length >= quota){
+            const allDays = document.querySelectorAll(".cal-day");
+            allDays.forEach(d=>{if(d.getAttribute("data-date")===dateStr) shake(d);});
             const el = document.getElementById("cal-sum");
-            if(sel.length===0){{
-                el.textContent="ยังไม่ได้เลือกวัน";
-                el.className="cal-sum empty-sum";
-            }}else{{
-                el.innerHTML="✅ เลือก <b>"+sel.length+" วัน</b>: "+sel.join(", ")+"<br><small style='color:#555'>📋 คัดลอกวันที่ด้านบนไปวางในช่องด้านล่าง</small>";
-                el.className="cal-sum";
-            }}
-        }}
-        function render(){{
-            document.getElementById("cal-title").textContent = MN[mo]+" พ.ศ."+(yr+543);
-            const g=document.getElementById("cal-grid");
-            g.innerHTML="";
-            DN.forEach(d=>{{const e=document.createElement("div");e.className="cal-dn";e.textContent=d;g.appendChild(e);}});
-            const fd=new Date(yr,mo,1).getDay();
-            const dim=new Date(yr,mo+1,0).getDate();
-            const today=new Date();
-            const todayStr=ds(today.getFullYear(),today.getMonth(),today.getDate());
-            for(let i=0;i<fd;i++){{const e=document.createElement("div");e.className="cal-day empty";g.appendChild(e);}}
-            for(let d=1;d<=dim;d++){{
-                const dateStr=ds(yr,mo,d);
-                const e=document.createElement("div");
-                let cls="cal-day";
-                if(dateStr===todayStr) cls+=" today";
-                if(bookedDates.includes(dateStr)){{
-                    cls+=" booked";
-                    e.innerHTML='<div>'+d+'</div><div class="lbl">'+bookedInfo[dateStr]+'</div>';
-                }}else if(sel.includes(dateStr)){{
-                    cls+=" selected";
-                    e.textContent=d;
-                }}else{{
-                    cls+=" normal";
-                    e.textContent=d;
-                }}
-                e.className=cls;
-                e.setAttribute("data-date", dateStr);
-                e.onclick=()=>toggle(dateStr);
-                g.appendChild(e);
-            }}
-        }}
-        window.onload = function() { render(); };
-        render();
-        </script>
-        """
+            el.innerHTML = "❌ ลาเกินสิทธิ์! ท่านมีสิทธิ์ลา <b>"+quota+" วัน</b> แต่เลือกครบแล้ว";
+            el.className="cal-sum";
+            el.style.background="#FFEBEE";
+            el.style.borderLeftColor="#E53935";
+            return;
+        }
+        sel.push(dateStr);
+    }
+    sel.sort();
+    render();
+    updateSum();
+    document.getElementById("sel-out").textContent = sel.join(",");
+}
+function updateSum(){
+    const el = document.getElementById("cal-sum");
+    if(sel.length===0){
+        el.textContent="ยังไม่ได้เลือกวัน";
+        el.className="cal-sum empty-sum";
+    }else{
+        el.innerHTML="✅ เลือก <b>"+sel.length+" วัน</b>: "+sel.join(", ")+"<br><small style='color:#555'>📋 คัดลอกวันที่ด้านบนไปวางในช่องด้านล่าง</small>";
+        el.className="cal-sum";
+    }
+}
+function render(){
+    document.getElementById("cal-title").textContent = MN[mo]+" พ.ศ."+(yr+543);
+    const g=document.getElementById("cal-grid");
+    g.innerHTML="";
+    DN.forEach(d=>{const e=document.createElement("div");e.className="cal-dn";e.textContent=d;g.appendChild(e);});
+    const fd=new Date(yr,mo,1).getDay();
+    const dim=new Date(yr,mo+1,0).getDate();
+    const today=new Date();
+    const todayStr=ds(today.getFullYear(),today.getMonth(),today.getDate());
+    for(let i=0;i<fd;i++){const e=document.createElement("div");e.className="cal-day empty";g.appendChild(e);}
+    for(let d=1;d<=dim;d++){
+        const dateStr=ds(yr,mo,d);
+        const e=document.createElement("div");
+        let cls="cal-day";
+        if(dateStr===todayStr) cls+=" today";
+        if(bookedDates.includes(dateStr)){
+            cls+=" booked";
+            e.innerHTML='<div>'+d+'</div><div class="lbl">'+bookedInfo[dateStr]+'</div>';
+        }else if(sel.includes(dateStr)){
+            cls+=" selected";
+            e.textContent=d;
+        }else{
+            cls+=" normal";
+            e.textContent=d;
+        }
+        e.className=cls;
+        e.setAttribute("data-date", dateStr);
+        e.onclick=()=>toggle(dateStr);
+        g.appendChild(e);
+    }
+}
+window.onload = function() { render(); };
+render();
+</script>
+"""
+        # แทนค่า Python variables เข้าไปใน template
+        cal_html = cal_html_template.replace(
+            "BOOKED_INFO_PLACEHOLDER", booked_info_js
+        ).replace(
+            "LEFT_ANNUAL_PLACEHOLDER", str(left_annual)
+        ).replace(
+            "LEFT_PERSONAL_PLACEHOLDER", str(left_personal)
+        ).replace(
+            "LEFT_SICK_PLACEHOLDER", str(left_sick)
+        )
 
-        # แสดงปฏิทิน
         import streamlit.components.v1 as components
-        cal_result = components.html(cal_html, height=380, scrolling=False)
+        components.html(cal_html, height=380, scrolling=False)
 
-        # รับวันที่เลือกจาก text input (พิมพ์เองหรือ sync จาก JS)
         if "cal_dates" not in st.session_state:
             st.session_state.cal_dates = ""
 
@@ -787,7 +685,6 @@ if menu == "📝 ยื่นคำขอลา":
             value=st.session_state.cal_dates,
             key="cal_input"
         )
-        # อัปเดต session state
         st.session_state.cal_dates = selected_input
 
         selected_dates = [d.strip() for d in selected_input.split(",") if d.strip() and len(d.strip()) == 10]
@@ -800,13 +697,17 @@ if menu == "📝 ยื่นคำขอลา":
             st.success(f"✅ เลือก **{total_days} วัน**: {', '.join(selected_dates)}")
 
         start = date.fromisoformat(selected_dates[0]) if selected_dates else date.today()
-        end = date.fromisoformat(selected_dates[-1]) if selected_dates else date.today()
-        days = total_days
-        date_ranges = [(date.fromisoformat(d), date.fromisoformat(d), 1) for d in selected_dates] if selected_dates else []
+        end   = date.fromisoformat(selected_dates[-1]) if selected_dates else date.today()
+        days  = total_days
 
         with st.form("leave_form"):
             leave_type = st.selectbox("ประเภทการลา", ["ลาพักร้อน", "ลาป่วย", "ลากิจ", "อื่นๆ"])
-            quota_map = {"ลาพักร้อน": left_annual, "ลากิจ": left_personal, "ลาป่วย": left_sick, "อื่นๆ": 999}
+            quota_map = {
+                "ลาพักร้อน": left_annual,
+                "ลากิจ": left_personal,
+                "ลาป่วย": left_sick,
+                "อื่นๆ": 999
+            }
             remaining = quota_map.get(leave_type, 0)
             st.caption(f"สิทธิ์คงเหลือ: {remaining} วัน")
             if selected_dates:
@@ -815,7 +716,6 @@ if menu == "📝 ยื่นคำขอลา":
                 else:
                     st.info(f"วันที่เลือก: {', '.join(selected_dates)} | รวม {total_days} วัน")
             reason = st.text_area("เหตุผล")
-            # ดึงชื่อหัวหน้าจากข้อมูลพนักงาน
             boss_id_val = str(emp.get("รหัสหัวหน้า", "")).strip().zfill(4)
             boss_emp = get_employee(boss_id_val) if boss_id_val and boss_id_val != "0000" else None
             if boss_emp:
@@ -854,9 +754,10 @@ if menu == "📝 ยื่นคำขอลา":
                     st.success("✅ ยื่นคำขอลาเรียบร้อยแล้ว! แจ้งเตือนผู้บังคับบัญชาแล้ว 📧")
 
 # ===============================
+# หน้า: อนุมัติใบลา
+# ===============================
 elif menu == "✅ อนุมัติใบลา":
     st.header("อนุมัติใบลา")
-
     approver_emp = current_user
     approver_id = approver_emp.get("รหัส","") if approver_emp else ""
 
@@ -868,21 +769,13 @@ elif menu == "✅ อนุมัติใบลา":
 
     leaves = load_leaves()
     all_emps = load_employees()
-
-    # หาลูกน้องของคนนี้
     subordinates = [e.get("รหัส","") for e in all_emps
                    if normalize_id(str(e.get("รหัสหัวหน้า",""))) == normalize_id(approver_id)]
 
-    # แสดงเฉพาะรายการที่
-    # 1. รออนุมัติ
-    # 2. ไม่ใช่ของตัวเอง
-    # 3. เป็นลูกน้องของคนนี้ หรือ ผู้อนุมัติในใบลาตรงกับรหัส/ชื่อคนนี้
     def is_for_approver(l):
         leave_emp_id = normalize_id(str(l.get("รหัส","")))
         approver_field = str(l.get("ผู้อนุมัติ",""))
-        # ลูกน้องของคนนี้
         is_subordinate = leave_emp_id in [normalize_id(s) for s in subordinates]
-        # ผู้อนุมัติระบุชื่อหรือรหัสคนนี้
         approver_name = current_user.get("ชื่อ","") if current_user else ""
         is_named = approver_id in approver_field or approver_name in approver_field
         return is_subordinate or is_named
@@ -912,6 +805,8 @@ elif menu == "✅ อนุมัติใบลา":
                     st.rerun()
 
 # ===============================
+# หน้า: ประวัติการลา
+# ===============================
 elif menu == "📋 ประวัติการลา":
     st.header("ประวัติการลา")
     leaves = load_leaves()
@@ -924,22 +819,17 @@ elif menu == "📋 ประวัติการลา":
         df = df[["รหัส","ชื่อ","แผนก","ประเภท","วันเริ่ม","วันสิ้นสุด","จำนวนวัน","สถานะ","เหตุผล"]]
 
         if is_admin:
-            # Admin ดูได้ทุกคน
             emp_filter = st.selectbox("กรองตามพนักงาน", ["ทั้งหมด"] + [f"{e['รหัส']} - {e['ชื่อ']}" for e in all_emps])
             if emp_filter != "ทั้งหมด":
                 filter_id = emp_filter.split(" - ")[0]
                 df = df[df["รหัส"] == filter_id]
         else:
             my_id = current_user.get("รหัส","")
-            # หาลูกน้องของคนนี้ (คนที่มี รหัสหัวหน้า == my_id)
-            subordinates = [e.get("รหัส","") for e in all_emps 
+            subordinates = [e.get("รหัส","") for e in all_emps
                           if normalize_id(str(e.get("รหัสหัวหน้า",""))) == normalize_id(my_id)]
-
             if subordinates:
-                # หัวหน้า ดูได้ทั้งตัวเองและลูกน้อง
                 allowed_ids = [my_id] + subordinates
                 df = df[df["รหัส"].apply(lambda x: normalize_id(str(x)) in [normalize_id(i) for i in allowed_ids])]
-                # filter เพิ่มเติม
                 view_options = ["ของฉัน"] + [f"{e['รหัส']} - {e['ชื่อ']}" for e in all_emps if e.get("รหัส","") in subordinates]
                 selected_view = st.selectbox("ดูประวัติของ", ["ทั้งหมด (ฉัน + ลูกน้อง)"] + view_options)
                 if selected_view == "ของฉัน":
@@ -948,7 +838,6 @@ elif menu == "📋 ประวัติการลา":
                     sel_id = selected_view.split(" - ")[0]
                     df = df[df["รหัส"].apply(lambda x: normalize_id(str(x)) == normalize_id(sel_id))]
             else:
-                # พนักงานทั่วไป ดูเฉพาะของตัวเอง
                 df = df[df["รหัส"].apply(lambda x: normalize_id(str(x)) == normalize_id(my_id))]
 
         status_filter = st.selectbox("กรองตามสถานะ", ["ทั้งหมด","รออนุมัติ","อนุมัติแล้ว","ถูกปฏิเสธ"])
@@ -961,16 +850,15 @@ elif menu == "📋 ประวัติการลา":
             st.dataframe(df, use_container_width=True, hide_index=True)
 
 # ===============================
+# หน้า: จัดการพนักงาน (Admin)
+# ===============================
 elif menu == "👥 จัดการพนักงาน (Admin)":
     st.header("👥 จัดการพนักงาน")
-
-    # ถ้า Login เป็น Admin แล้ว ไม่ต้องใส่รหัสผ่านซ้ำ
     if not is_admin:
         st.error("❌ คุณไม่มีสิทธิ์เข้าถึงหน้านี้")
         st.stop()
 
     employees = load_employees()
-
     if employees:
         st.subheader("รายชื่อพนักงานในระบบ")
         st.dataframe(pd.DataFrame(employees), use_container_width=True, hide_index=True)
@@ -1050,7 +938,6 @@ elif menu == "👥 จัดการพนักงาน (Admin)":
         st.divider()
         st.subheader("🔴 ปิดการใช้งานพนักงาน")
         st.caption("ข้อมูลยังอยู่ แต่พนักงานจะ Login ไม่ได้")
-        # โหลดทั้ง active และ inactive
         all_emps_admin = load_employees(include_inactive=True)
         emp_list2 = [f"{e['รหัส']} — {e['ชื่อ']} {'🔴' if str(e.get('สถานะ','')).lower() == 'inactive' else '🟢'}" for e in all_emps_admin]
         selected_del = st.selectbox("เลือกพนักงาน", emp_list2, key="del_select")
