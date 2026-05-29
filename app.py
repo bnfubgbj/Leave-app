@@ -329,9 +329,9 @@ if "logged_in" not in st.session_state:
     st.session_state.is_admin = False
 
 def do_logout():
-    st.session_state.logged_in = False
-    st.session_state.login_user = None
-    st.session_state.is_admin = False
+    # clear ทุก session state เพื่อไม่ให้ข้อมูล user เก่าค้าง
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
 
 if not st.session_state.logged_in:
     import base64
