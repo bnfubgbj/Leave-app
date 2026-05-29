@@ -588,65 +588,39 @@ if menu == "📝 ยื่นคำขอลา":
                     scrolling=False
                 )
 
-        # ===== เลือกวันที่ลา — รองรับหลายช่วง =====
+        # เลือกวันที่ลา — ช่วงเดียว
         st.markdown("**📅 เลือกวันที่ต้องการลา**")
+        col_s, col_e = st.columns(2)
+        with col_s:
+            leave_start = st.date_input("วันเริ่มต้น", value=date.today(), key="leave_start")
+        with col_e:
+            leave_end = st.date_input("วันสิ้นสุด", value=date.today(), key="leave_end")
 
-        # จัดการจำนวนช่วงวันใน session_state
-        if "num_ranges" not in st.session_state:
-            st.session_state.num_ranges = 1
-
-        col_add, col_clear = st.columns([1, 1])
-        with col_add:
-            if st.button("➕ เพิ่มช่วงวัน", key="add_range"):
-                st.session_state.num_ranges += 1
-        with col_clear:
-            if st.button("🗑️ รีเซ็ต", key="clear_range"):
-                st.session_state.num_ranges = 1
-
-        # แสดง date_input ตามจำนวนช่วง
-        ranges = []
-        for r in range(st.session_state.num_ranges):
-            st.markdown(f"**ช่วงที่ {r+1}**")
-            c1, c2 = st.columns(2)
-            with c1:
-                rs = st.date_input("วันเริ่มต้น", value=date.today(), key=f"rs_{r}")
-            with c2:
-                re = st.date_input("วันสิ้นสุด", value=date.today(), key=f"re_{r}")
-            ranges.append((rs, re))
-
-        # รวมวันที่ทั้งหมดจากทุกช่วง
         selected_dates = []
         overlap_dates  = []
-        error_ranges   = []
-
-        for idx_r, (rs, re) in enumerate(ranges):
-            if rs > re:
-                error_ranges.append(idx_r + 1)
-                continue
-            cur = rs
-            while cur <= re:
-                ds = str(cur)
+        if leave_start <= leave_end:
+            cur = leave_start
+            while cur <= leave_end:
                 if cur in booked_dates_set:
-                    if ds not in overlap_dates:
-                        overlap_dates.append(ds)
+                    overlap_dates.append(str(cur))
                 else:
-                    if ds not in selected_dates:
-                        selected_dates.append(ds)
+                    selected_dates.append(str(cur))
                 cur += td2(days=1)
 
-        selected_dates.sort()
         total_days = len(selected_dates)
         has_overlap = len(overlap_dates) > 0
 
-        if error_ranges:
-            st.error(f"❌ ช่วงที่ {', '.join(map(str,error_ranges))}: วันเริ่มต้นต้องไม่มากกว่าวันสิ้นสุด")
-        if has_overlap:
-            st.error(f"⚠️ วันซ้ำกับที่ลาไปแล้ว: {', '.join(overlap_dates)}")
-        if total_days > 0:
-            st.success(f"✅ เลือกรวม **{total_days} วัน**: {', '.join(selected_dates)}")
+        if leave_start > leave_end:
+            st.error("❌ วันเริ่มต้นต้องไม่มากกว่าวันสิ้นสุด")
+        elif has_overlap:
+            st.error(f"⚠️ มีวันที่ซ้ำกับวันลาที่มีอยู่แล้ว: {', '.join(overlap_dates)}")
+            if selected_dates:
+                st.warning(f"วันที่ใช้ได้: {', '.join(selected_dates)} | รวม {total_days} วัน")
+        elif total_days > 0:
+            st.success(f"✅ เลือก **{total_days} วัน**: {', '.join(selected_dates)}")
 
-        start = date.fromisoformat(selected_dates[0]) if selected_dates else date.today()
-        end   = date.fromisoformat(selected_dates[-1]) if selected_dates else date.today()
+        start = leave_start
+        end   = leave_end
         days  = total_days
 
         # selectbox นอก form เพื่อให้ rerun ทันทีเมื่อเปลี่ยนประเภท
