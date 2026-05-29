@@ -502,8 +502,14 @@ if menu == "📝 ยื่นคำขอลา":
                         and l.get("สถานะ","") == "รออนุมัติ"]
         if pending_leaves:
             st.warning("⏳ รายการที่รออนุมัติ")
-            for pl in pending_leaves:
-                st.info(f"📅 {pl.get('ประเภท','')} | {pl.get('วันเริ่ม','')} → {pl.get('วันสิ้นสุด','')} | {pl.get('จำนวนวัน','')} วัน | เหตุผล: {pl.get('เหตุผล','')}")
+            df_pending_show = pd.DataFrame([{
+                "ประเภท": pl.get("ประเภท",""),
+                "วันเริ่ม": pl.get("วันเริ่ม",""),
+                "วันสิ้นสุด": pl.get("วันสิ้นสุด",""),
+                "จำนวนวัน": pl.get("จำนวนวัน",""),
+                "เหตุผล": pl.get("เหตุผล",""),
+            } for pl in pending_leaves])
+            st.dataframe(df_pending_show, use_container_width=True, hide_index=True)
 
     if emp:
         from datetime import datetime as dt2, timedelta as td2
@@ -528,12 +534,15 @@ if menu == "📝 ยื่นคำขอลา":
                 except:
                     pass
 
-        # แสดงวันที่ลาไปแล้ว
+        # แสดงวันที่ลาไปแล้ว (ตารางเล็ก)
         if booked_info:
             booked_list = sorted(booked_info.keys())
-            st.info("📅 วันที่ลาไปแล้ว: " + ", ".join(
-                f"{d}({booked_info[d]})" for d in booked_list
-            ))
+            df_booked = pd.DataFrame([
+                {"วันที่": d, "ประเภท": booked_info[d]}
+                for d in booked_list
+            ])
+            st.markdown("**📅 วันที่ลาไปแล้ว**")
+            st.dataframe(df_booked, use_container_width=True, hide_index=True, height=min(len(booked_list)*35+38, 200))
 
         # เลือกวันที่ลา — ใช้ date_input แบบช่วงวัน
         st.markdown("**📅 เลือกวันที่ต้องการลา**")
