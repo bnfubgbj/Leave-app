@@ -625,20 +625,7 @@ if menu == "📝 ยื่นคำขอลา":
         days  = total_days
 
         with st.form("leave_form"):
-            leave_type = st.selectbox("ประเภทการลา", ["ลาพักร้อน", "ลาป่วย", "ลากิจ", "อื่นๆ"])
-            quota_map = {
-                "ลาพักร้อน": left_annual,
-                "ลากิจ": left_personal,
-                "ลาป่วย": left_sick,
-                "อื่นๆ": 999
-            }
-            remaining = quota_map.get(leave_type, 0)
-            st.caption(f"สิทธิ์คงเหลือ: {remaining} วัน")
-            if selected_dates:
-                if total_days > remaining:
-                    st.error(f"❌ เลือก {total_days} วัน แต่มีสิทธิ์แค่ {remaining} วัน!")
-                else:
-                    st.info(f"วันที่เลือก: {', '.join(selected_dates)} | รวม {total_days} วัน")
+            st.markdown(f"**ประเภทการลา:** {leave_type} &nbsp;|&nbsp; **สิทธิ์คงเหลือ:** {remaining} วัน")
             reason = st.text_area("เหตุผล")
             boss_id_val = str(emp.get("รหัสหัวหน้า", "")).strip().zfill(4)
             boss_emp = get_employee(boss_id_val) if boss_id_val and boss_id_val != "0000" else None
